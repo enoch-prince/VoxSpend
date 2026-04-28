@@ -1,0 +1,255 @@
+// ============================================
+// VoxSpend Main Stylesheet
+// ============================================
+
+@use "variables" as *;
+@use "neumorphic";
+@use "dark-theme";
+@use "sass:color";
+
+// ---- CSS Custom Properties (Light = default) ----
+:root {
+  --bg: #{$light-bg};
+  --surface: #{$light-surface};
+  --surface-alt: #{$light-surface-alt};
+  --text: #{$light-text};
+  --text-secondary: #{$light-text-secondary};
+  --text-tertiary: #{$light-text-tertiary};
+  --border: #{$light-border};
+  --neo-shadow: #{$neo-light-shadow};
+  --neo-shadow-sm: #{$neo-light-shadow-sm};
+  --neo-inset: #{$neo-light-inset};
+  --glass-bg: rgba(240, 244, 248, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --income-color: #{$success};
+  --expense-color: #{$danger};
+  --bottom-nav-height: #{$bottom-nav-height};
+
+  color-scheme: light;
+}
+
+// ---- Reset & Base ----
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+  height: 100%;
+}
+
+body {
+  font-family: $font-family;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#app {
+  max-width: $max-app-width;
+  margin: 0 auto;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+// ---- Typography Utilities ----
+.text-xs { font-size: $font-size-xs; }
+.text-sm { font-size: $font-size-sm; }
+.text-base { font-size: $font-size-base; }
+.text-md { font-size: $font-size-md; }
+.text-lg { font-size: $font-size-lg; }
+.text-xl { font-size: $font-size-xl; }
+.text-2xl { font-size: $font-size-2xl; }
+.text-3xl { font-size: $font-size-3xl; }
+
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-extrabold { font-weight: 800; }
+
+.text-primary { color: $primary; }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary { color: var(--text-tertiary); }
+.text-success { color: $success; }
+.text-danger { color: $danger; }
+.text-warning { color: $warning; }
+
+// ---- Layout Utilities ----
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-row { flex-direction: row; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.flex-1 { flex: 1; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-xs { gap: $space-xs; }
+.gap-sm { gap: $space-sm; }
+.gap-md { gap: $space-md; }
+.gap-lg { gap: $space-lg; }
+.gap-xl { gap: $space-xl; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.overflow-y-auto {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+// ---- Spacing ----
+.p-sm { padding: $space-sm; }
+.p-md { padding: $space-md; }
+.p-lg { padding: $space-lg; }
+.p-xl { padding: $space-xl; }
+.px-md { padding-left: $space-md; padding-right: $space-md; }
+.px-lg { padding-left: $space-lg; padding-right: $space-lg; }
+.py-sm { padding-top: $space-sm; padding-bottom: $space-sm; }
+.py-md { padding-top: $space-md; padding-bottom: $space-md; }
+.mb-xs { margin-bottom: $space-xs; }
+.mb-sm { margin-bottom: $space-sm; }
+.mb-md { margin-bottom: $space-md; }
+.mb-lg { margin-bottom: $space-lg; }
+.mt-md { margin-top: $space-md; }
+.mt-lg { margin-top: $space-lg; }
+
+// ---- Scrollbar Styling ----
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+  border-radius: $radius-full;
+}
+
+// ---- Material Icons helper ----
+.material-symbols-rounded {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.icon-sm { font-size: 18px; }
+.icon-md { font-size: 24px; }
+.icon-lg { font-size: 32px; }
+
+// ---- Page Transition ----
+.page-enter-active,
+.page-leave-active {
+  transition: opacity $transition-base, transform $transition-base;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+// ---- Modal / Bottom Sheet Transition ----
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity $transition-slow;
+}
+.modal-enter-active .modal-content,
+.modal-leave-active .modal-content {
+  transition: transform $transition-slow;
+}
+.modal-enter-from {
+  opacity: 0;
+}
+.modal-enter-from .modal-content {
+  transform: translateY(100%);
+}
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-leave-to .modal-content {
+  transform: translateY(100%);
+}
+
+// ---- Offline Banner ----
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: $max-app-width;
+  width: 100%;
+  padding: 6px 16px;
+  background: $warning;
+  color: #1A202C;
+  font-size: $font-size-xs;
+  font-weight: 600;
+  text-align: center;
+  z-index: 1000;
+  animation: slideDown 300ms ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateX(-50%) translateY(-100%); }
+  to { transform: translateX(-50%) translateY(0); }
+}
+
+// ---- Category Color Dots ----
+.cat-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &--food { background: $cat-food; }
+  &--family { background: $cat-family; }
+  &--entertainment { background: $cat-entertainment; }
+  &--study { background: $cat-study; }
+  &--transport { background: $cat-transport; }
+  &--utilities { background: $cat-utilities; }
+  &--health { background: $cat-health; }
+  &--shopping { background: $cat-shopping; }
+  &--other { background: $cat-other; }
+}
+
+// ---- Amount display ----
+.amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+
+  &--positive { color: $success; }
+  &--negative { color: var(--text); }
+}
+
+// ---- MoMo provider badges ----
+.momo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: $radius-full;
+  font-size: $font-size-xs;
+  font-weight: 700;
+
+  // &--mtn { background: rgba($momo-mtn, 0.15); color: darken($momo-mtn, 15%); }
+  &--mtn { background: rgba($momo-mtn, 0.15); color: color.adjust($momo-mtn, $lightness: -15%); }
+  &--telecel { background: rgba($momo-telecel, 0.12); color: $momo-telecel; }
+  &--airteltigo { background: rgba($momo-airteltigo, 0.12); color: $momo-airteltigo; }
+}
