@@ -4,29 +4,9 @@
 
 @use "variables" as *;
 @use "neumorphic";
+@use "light-theme";
 @use "dark-theme";
 @use "sass:color";
-
-// ---- CSS Custom Properties (Light = default) ----
-:root {
-  --bg: #{$light-bg};
-  --surface: #{$light-surface};
-  --surface-alt: #{$light-surface-alt};
-  --text: #{$light-text};
-  --text-secondary: #{$light-text-secondary};
-  --text-tertiary: #{$light-text-tertiary};
-  --border: #{$light-border};
-  --neo-shadow: #{$neo-light-shadow};
-  --neo-shadow-sm: #{$neo-light-shadow-sm};
-  --neo-inset: #{$neo-light-inset};
-  --glass-bg: rgba(240, 244, 248, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --income-color: #{$success};
-  --expense-color: #{$danger};
-  --bottom-nav-height: #{$bottom-nav-height};
-
-  color-scheme: light;
-}
 
 // ---- Reset & Base ----
 *,

@@ -4,7 +4,7 @@
 
 @use "variables" as *;
 
-[data-theme="dark"] {
+html[data-theme="dark"] {
   --bg: #{$dark-bg};
   --surface: #{$dark-surface};
   --surface-alt: #{$dark-surface-alt};
@@ -15,7 +15,7 @@
   --neo-shadow: #{$neo-dark-shadow};
   --neo-shadow-sm: #{$neo-dark-shadow-sm};
   --neo-inset: #{$neo-dark-inset};
-  --glass-bg: rgba(26, 29, 46, 0.85);
+  --glass-bg: rgba(26, 29, 46, 0.5);
   --glass-border: rgba(255, 255, 255, 0.06);
   --income-color: #{$success};
   --expense-color: #{$danger};

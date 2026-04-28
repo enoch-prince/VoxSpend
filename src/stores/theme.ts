@@ -20,10 +20,12 @@ export const useThemeStore = defineStore('theme', () => {
       resolved = m
     }
 
+    console.log(`Applying theme: ${resolved} (mode: ${m})`)
     document.documentElement.setAttribute('data-theme', resolved)
   }
 
   const setMode = (newMode: ThemeMode) => {
+    console.log(`Setting mode to: ${newMode}`)
     mode.value = newMode
     localStorage.setItem('voxspend-theme', newMode)
     applyTheme(newMode)
