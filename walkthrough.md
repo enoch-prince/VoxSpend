@@ -27,9 +27,9 @@ A premium design system inspired by the provided reference images.
 
 ## Key Files
 
-- [src/services/groqService.ts](file:///c:/Users/LENOVO%20T460S/Documents/Programming/eco-expense/src/services/groqService.ts) — The AI engine.
-- [src/stores/expenses.ts](file:///c:/Users/LENOVO%20T460S/Documents/Programming/eco-expense/src/stores/expenses.ts) — The local-first data store.
-- [src/assets/scss/main.scss](file:///c:/Users/LENOVO%20T460S/Documents/Programming/eco-expense/src/assets/scss/main.scss) — The design system.
+- [src/services/groqService.ts](src/services/groqService.ts) — The AI engine.
+- [src/stores/expenses.ts](src/stores/expenses.ts) — The local-first data store.
+- [src/assets/scss/main.scss](src/assets/scss/main.scss) — The design system.
 
 ## How to Test
 
