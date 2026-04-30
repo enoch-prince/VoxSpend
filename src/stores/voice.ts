@@ -38,32 +38,57 @@ export const useVoiceStore = defineStore('voice', () => {
     const userStore = useUserStore()
     const categoriesStore = useCategoriesStore()
 
-    if (!userStore.hasApiKey) {
-      state.value = 'error'
-      errorMessage.value = 'Please add your Groq API key in Settings'
-      recorder.cancelRecording()
-      return
-    }
+    // Removed strict check. We will use proxy if no key exists.
 
     try {
       state.value = 'processing'
       const blob = await recorder.stopRecording()
 
-      // Step 1: Transcribe
-      transcript.value = await transcribeAudio(blob, userStore.profile.groqApiKey)
+      if (!userStore.hasApiKey) {
+        // --- USE PROXY ---
+        const base64Audio = await blobToBase64(blob)
+        const response = await fetch('/api/voice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio: base64Audio,
+            categories: categoriesStore.categoryNames
+          })
+        })
 
-      if (!transcript.value || transcript.value.trim().length === 0) {
-        state.value = 'error'
-        errorMessage.value = 'Could not understand the audio. Please try again.'
-        return
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.message || 'Proxy processing failed')
+        }
+
+        const data = await response.json()
+        transcript.value = data.transcript
+        parsedExpense.value = {
+          ...data.result,
+          amount: Math.abs(data.result.amount || 0),
+          currency: data.result.currency || 'GHS',
+          type: data.result.type === 'income' ? 'income' : 'expense',
+          category: data.result.category || 'Other',
+          merchant: data.result.merchant || 'Unknown',
+          note: data.result.note || data.transcript,
+          date: data.result.date || new Date().toISOString().split('T')[0]
+        }
+      } else {
+        // --- USE DIRECT GROQ ---
+        transcript.value = await transcribeAudio(blob, userStore.profile.groqApiKey)
+
+        if (!transcript.value || transcript.value.trim().length === 0) {
+          state.value = 'error'
+          errorMessage.value = 'Could not understand the audio. Please try again.'
+          return
+        }
+
+        parsedExpense.value = await parseExpense(
+          transcript.value,
+          userStore.profile.groqApiKey,
+          categoriesStore.categoryNames
+        )
       }
-
-      // Step 2: Parse
-      parsedExpense.value = await parseExpense(
-        transcript.value,
-        userStore.profile.groqApiKey,
-        categoriesStore.categoryNames
-      )
 
       state.value = 'confirm'
     } catch (err) {
@@ -108,6 +133,19 @@ export const useVoiceStore = defineStore('voice', () => {
   function cancel() {
     recorder.cancelRecording()
     reset()
+  }
+
+  // Helper: Convert Blob to Base64 string
+  function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(',')[1]
+        resolve(base64String)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
   }
 
   return {

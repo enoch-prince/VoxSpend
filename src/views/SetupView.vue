@@ -14,10 +14,8 @@
 
       <!-- API Key -->
       <div class="setup__field mb-lg">
-        <label class="text-sm font-semibold mb-xs" style="display:block;">Groq API Key</label>
         <p class="text-xs text-tertiary mb-sm">
-          Required for voice features. Get a free key at
-          <a href="https://console.groq.com/keys" target="_blank" rel="noopener" class="text-primary">console.groq.com</a>
+          Optional. You can use our shared beta key for free, or use your own for higher limits.
         </p>
         <div class="flex gap-sm">
           <input
@@ -70,7 +68,7 @@ const apiKey = ref('')
 const showKey = ref(false)
 const validationError = ref('')
 
-const canSubmit = computed(() => name.value.trim().length >= 2 && apiKey.value.trim().length > 10)
+const canSubmit = computed(() => name.value.trim().length >= 2)
 
 function handleSubmit() {
   validationError.value = ''
@@ -80,7 +78,7 @@ function handleSubmit() {
     return
   }
 
-  if (!apiKey.value.trim().startsWith('gsk_')) {
+  if (apiKey.value.trim() && !apiKey.value.trim().startsWith('gsk_')) {
     validationError.value = 'API key should start with gsk_'
     return
   }
