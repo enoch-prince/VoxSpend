@@ -54,6 +54,12 @@ const router = createRouter({
       name: 'setup',
       component: () => import('@/views/SetupView.vue'),
       meta: { title: 'Setup — VoxSpend', hideNav: true }
+    },
+    {
+      path: '/feedback',
+      name: 'feedback',
+      component: () => import('@/views/FeedbackView.vue'),
+      meta: { title: 'Feedback — VoxSpend' }
     }
   ]
 })

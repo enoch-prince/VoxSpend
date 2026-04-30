@@ -95,6 +95,15 @@
         </div>
       </div>
 
+      <!-- Help & Feedback -->
+      <div class="neo-card-sm mb-md">
+        <div class="profile-view__row" @click="$router.push('/feedback')">
+          <span class="material-symbols-rounded text-secondary">feedback</span>
+          <span class="text-sm font-semibold flex-1">Send Feedback</span>
+          <span class="material-symbols-rounded text-tertiary icon-sm">chevron_right</span>
+        </div>
+      </div>
+
       <!-- App Info -->
       <div class="profile-view__footer">
         <p class="text-xs text-tertiary">VoxSpend v0.1.0</p>
