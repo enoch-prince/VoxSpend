@@ -115,7 +115,7 @@
         <p class="text-xs text-tertiary">VoxSpend v{{ appVersion }}</p>
         <p class="text-xs text-tertiary">Track spending with your voice.</p>
         <br>
-        <p class="text-xs text-tertiary">Made with ❤️ by <a href="https://github.com/enoch-prince" target="_blank">Enoch Prince 😎</a></p>
+        <p class="text-xs text-tertiary">Made with ❤️ by <a href="https://github.com/enoch-prince" target="_blank">Enoch Prince</a>😎</p>
       </div>
 
       <div style="height: 20px;"></div>
