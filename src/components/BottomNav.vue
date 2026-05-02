@@ -143,7 +143,7 @@ function handleFabClick() {
   z-index: 110;
   width: 64px !important;
   height: 64px !important;
-  border: 1.5px solid var(--bg) !important;
+  // border: 1.5px solid var(--bg) !important;
   box-shadow: 0 10px 25px rgba($primary, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.3) !important;
   background: linear-gradient(135deg, $primary, $primary-light) !important;
   display: flex !important;

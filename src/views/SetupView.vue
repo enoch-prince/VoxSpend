@@ -91,6 +91,11 @@ function handleSubmit() {
 <style lang="scss">
 .setup {
   background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-content: center;
+  flex-wrap: wrap;
+  justify-content: center;
 
   &__content {
     max-width: 360px;

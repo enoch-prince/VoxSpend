@@ -28,7 +28,7 @@
     </div>
 
     <!-- Actions -->
-    <div class="onboarding__actions px-lg mb-xl">
+    <div class="onboarding__actions px-lg mb-md">
       <button
         v-if="currentSlide < slides.length - 1"
         class="neo-button neo-button--primary w-full"
