@@ -71,7 +71,7 @@
             The following info will be sent to help us debug:
           </p>
           <p class="text-xs text-tertiary">
-            App Version: v0.1.0 • {{ getDeviceInfo() }}
+            App Version: v{{ appVersion }} • {{ getDeviceInfo() }}
           </p>
         </div>
 
@@ -100,6 +100,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useFeedbackStore, type FeedbackType } from '@/stores/feedback'
 
 const feedbackStore = useFeedbackStore()
+const appVersion = APP_VERSION
 
 const categories: { id: FeedbackType; name: string; icon: string }[] = [
   { id: 'bug', name: 'Bug Report', icon: 'bug_report' },
@@ -137,7 +138,7 @@ async function handleSubmit() {
     message: form.message,
     email: form.email,
     metadata: {
-      version: '0.1.0',
+      version: appVersion,
       userAgent: navigator.userAgent,
       screenSize: `${window.innerWidth}x${window.innerHeight}`,
       timestamp: new Date().toISOString()

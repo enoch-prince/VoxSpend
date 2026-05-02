@@ -106,7 +106,7 @@
 
       <!-- App Info -->
       <div class="profile-view__footer">
-        <p class="text-xs text-tertiary">VoxSpend v0.1.0</p>
+        <p class="text-xs text-tertiary">VoxSpend v{{ appVersion }}</p>
         <p class="text-xs text-tertiary">Track spending with your voice.</p>
         <br>
         <p class="text-xs text-tertiary">Made with ❤️ by <a href="https://github.com/enoch-prince" target="_blank">Enoch Prince</a></p>
@@ -130,6 +130,7 @@ const themeStore = useThemeStore()
 const momoStore = useMomoStore()
 const expensesStore = useExpensesStore()
 const categoriesStore = useCategoriesStore()
+const appVersion = APP_VERSION
 
 const showApiKey = ref(false)
 const showKeyValue = ref(false)
