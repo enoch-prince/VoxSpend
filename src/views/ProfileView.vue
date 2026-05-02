@@ -97,6 +97,12 @@
 
       <!-- Help & Feedback -->
       <div class="neo-card-sm mb-md">
+        <div v-if="canInstall" class="profile-view__row" @click="promptInstall">
+          <span class="material-symbols-rounded text-primary">download_for_offline</span>
+          <span class="text-sm font-semibold flex-1">Install VoxSpend</span>
+          <span class="material-symbols-rounded text-tertiary icon-sm">chevron_right</span>
+        </div>
+        <div v-if="canInstall" class="profile-view__divider"></div>
         <div class="profile-view__row" @click="$router.push('/feedback')">
           <span class="material-symbols-rounded text-secondary">feedback</span>
           <span class="text-sm font-semibold flex-1">Send Feedback</span>
@@ -109,7 +115,7 @@
         <p class="text-xs text-tertiary">VoxSpend v{{ appVersion }}</p>
         <p class="text-xs text-tertiary">Track spending with your voice.</p>
         <br>
-        <p class="text-xs text-tertiary">Made with ❤️ by <a href="https://github.com/enoch-prince" target="_blank">Enoch Prince</a></p>
+        <p class="text-xs text-tertiary">Made with ❤️ by <a href="https://github.com/enoch-prince" target="_blank">Enoch Prince 😎</a></p>
       </div>
 
       <div style="height: 20px;"></div>
@@ -124,12 +130,14 @@ import { useThemeStore } from '@/stores/theme'
 import { useMomoStore } from '@/stores/momo'
 import { useExpensesStore } from '@/stores/expenses'
 import { useCategoriesStore } from '@/stores/categories'
+import { usePwaInstall } from '@/composables/usePwaInstall'
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
 const momoStore = useMomoStore()
 const expensesStore = useExpensesStore()
 const categoriesStore = useCategoriesStore()
+const { canInstall, promptInstall } = usePwaInstall()
 const appVersion = APP_VERSION
 
 const showApiKey = ref(false)
