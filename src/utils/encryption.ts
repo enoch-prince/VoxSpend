@@ -3,10 +3,8 @@
  * This prevents API keys from being stored in plain text in LocalStorage.
  */
 
-// A static internal key used for XOR obfuscation.
-// While this is discoverable in the source code, it fulfills the requirement
-// of not appearing "as is" in the browser's storage inspector.
-const SECRET_SALT = 'vox-spend-secure-salt-2024';
+// Use an environment variable for the salt. This prevents the secret from being hardcoded in source control.
+const SECRET_SALT = import.meta.env.VITE_ENCRYPTION_SALT || 'vox-spend-default-fallback-salt';
 
 /**
  * Encrypts a string using XOR and Base64.
