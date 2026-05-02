@@ -3,8 +3,8 @@
  * This prevents API keys from being stored in plain text in LocalStorage.
  */
 
-// Use an environment variable for the salt. This prevents the secret from being hardcoded in source control.
-const SECRET_SALT = import.meta.env.VITE_ENCRYPTION_SALT || 'vox-spend-default-fallback-salt';
+// Use a generic environment variable for the local storage obfuscation.
+const STORAGE_ID = import.meta.env.VITE_APP_ID || 'vox-spend-default-v1';
 
 /**
  * Encrypts a string using XOR and Base64.
@@ -14,7 +14,7 @@ export function encrypt(text: string): string {
   
   let result = '';
   for (let i = 0; i < text.length; i++) {
-    const charCode = text.charCodeAt(i) ^ SECRET_SALT.charCodeAt(i % SECRET_SALT.length);
+    const charCode = text.charCodeAt(i) ^ STORAGE_ID.charCodeAt(i % STORAGE_ID.length);
     result += String.fromCharCode(charCode);
   }
   
@@ -34,7 +34,7 @@ export function decrypt(encoded: string): string {
     const text = atob(encoded);
     let result = '';
     for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i) ^ SECRET_SALT.charCodeAt(i % SECRET_SALT.length);
+      const charCode = text.charCodeAt(i) ^ STORAGE_ID.charCodeAt(i % STORAGE_ID.length);
       result += String.fromCharCode(charCode);
     }
     return result;

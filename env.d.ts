@@ -10,7 +10,7 @@ declare const APP_VERSION: string;
 
 interface ImportMetaEnv {
   readonly VITE_GROQ_API_KEY?: string;
-  readonly VITE_ENCRYPTION_SALT?: string;
+  readonly VITE_APP_ID?: string;
 }
 
 interface ImportMeta {
