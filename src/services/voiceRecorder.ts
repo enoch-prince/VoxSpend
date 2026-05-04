@@ -31,7 +31,10 @@ export function useVoiceRecorder() {
       })
 
       // Set up audio analyser for waveform visualization
-      const audioContext = new AudioContext()
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume()
+      }
       const source = audioContext.createMediaStreamSource(stream)
       analyser = audioContext.createAnalyser()
       analyser.fftSize = 256
@@ -56,12 +59,12 @@ export function useVoiceRecorder() {
       mediaRecorder = new MediaRecorder(stream, { mimeType })
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunks.push(event.data)
         }
       }
 
-      mediaRecorder.start(100) // Collect data every 100ms
+      mediaRecorder.start(50) // More frequent chunks for stability
       isRecording.value = true
       duration.value = 0
 
@@ -88,6 +91,10 @@ export function useVoiceRecorder() {
       }
 
       mediaRecorder.onstop = () => {
+        if (audioChunks.length === 0) {
+          reject(new Error('No audio data captured. Please try again.'))
+          return
+        }
         const blob = new Blob(audioChunks, { type: 'audio/webm' })
         cleanup()
         resolve(blob)

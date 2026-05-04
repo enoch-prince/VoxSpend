@@ -18,10 +18,14 @@ export async function transcribeAudio(blob: Blob, apiKey: string): Promise<strin
   // GEOGRAPHIC TUNING: Help Whisper recognize local Ghanaian terms
   formData.append('prompt', 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Kelewele, Kenkey, Papaye, Melcom.')
 
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('Groq API Key is missing. Please add it in Settings.')
+  }
+
   const response = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`
+      'Authorization': `Bearer ${apiKey.trim()}`
     },
     body: formData
   })
@@ -60,10 +64,14 @@ export async function parseExpense(
   
   Return ONLY JSON: {"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
 
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('Groq API Key is missing. Please add it in Settings.')
+  }
+
   const response = await fetch(`${GROQ_API_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${apiKey.trim()}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
