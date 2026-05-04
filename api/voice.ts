@@ -31,6 +31,8 @@ export default async function handler(
     formData.append('file', file, 'recording.webm')
     formData.append('model', 'whisper-large-v3-turbo')
     formData.append('response_format', 'text')
+    // GEOGRAPHIC TUNING: Help Whisper recognize local Ghanaian terms
+    formData.append('prompt', 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Kelewele, Kenkey, Papaye, Melcom.')
 
     // 2. Transcribe
     const transcriptionRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
@@ -47,9 +49,19 @@ export default async function handler(
 
     // 3. Parse with Llama
     const today = new Date().toISOString().split('T')[0]
-    const systemPrompt = `You are an expense parser. Extract structured data from: "${transcript}"
-    Today: ${today}
-    Categories: ${categories.join(', ')}
+    const systemPrompt = `You are a Ghanaian expense parser. Extract structured data from: "${transcript}"
+    
+    LOCAL CONTEXT:
+    - Primary currency: GHS (Ghana Cedis).
+    - If the user says "cedis", "cedi", "pesewas", or just a number, it is GHS.
+    - "MoMo" refers to Mobile Money.
+    - Common categories: Food, Transport (Trotro/Taxi), Utilities, Family, Health, Shopping, Other.
+    - Today is: ${today}
+
+    RULES:
+    - Pick the best matching category from: ${categories.join(', ')}
+    - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Waakye Seller").
+    
     Return ONLY JSON: {"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
 
     const parseRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {

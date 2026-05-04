@@ -15,6 +15,8 @@ export async function transcribeAudio(blob: Blob, apiKey: string): Promise<strin
   formData.append('model', 'whisper-large-v3-turbo')
   formData.append('language', 'en')
   formData.append('response_format', 'text')
+  // GEOGRAPHIC TUNING: Help Whisper recognize local Ghanaian terms
+  formData.append('prompt', 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Kelewele, Kenkey, Papaye, Melcom.')
 
   const response = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
     method: 'POST',
@@ -43,21 +45,20 @@ export async function parseExpense(
   const today = new Date().toISOString().split('T')[0]
   const categoryList = categories.join(', ')
 
-  const systemPrompt = `You are an expense parser for a Ghanaian user. Extract structured data from spoken expense descriptions.
+  const systemPrompt = `You are a Ghanaian expense parser. Extract structured data from: "${transcript}"
+  
+  LOCAL CONTEXT:
+  - Primary currency: GHS (Ghana Cedis).
+  - If the user says "cedis", "cedi", "pesewas", or just a number, it is GHS.
+  - "MoMo" refers to Mobile Money.
+  - Today is: ${today}
 
-RULES:
-- Primary currency: GHS (Ghana Cedis)
-- If the user says "cedis" or "cedi", currency is GHS
-- If no currency mentioned, default to GHS
-- If no date mentioned, use today: ${today}
-- Determine if it's an "expense" or "income" based on context (received/earned = income, spent/bought/paid = expense)
-- Pick the best matching category from: ${categoryList}
-- If no category fits, use "Other"
-- merchant should be the vendor/person/place name, or "Unknown" if not mentioned
-- note should capture any extra detail from the speech
-
-Return ONLY valid JSON, no markdown, no explanation:
-{"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
+  RULES:
+  - Pick the best matching category from: ${categoryList}
+  - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Waakye Seller").
+  - note should capture any extra detail from the speech
+  
+  Return ONLY JSON: {"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
 
   const response = await fetch(`${GROQ_API_BASE}/chat/completions`, {
     method: 'POST',
