@@ -31,8 +31,8 @@ export default async function handler(
     formData.append('file', file, 'recording.webm')
     formData.append('model', 'whisper-large-v3-turbo')
     formData.append('response_format', 'text')
-    // GEOGRAPHIC TUNING: Help Whisper recognize local Ghanaian terms
-    formData.append('prompt', 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Kelewele, Kenkey, Papaye, Melcom.')
+    // GEOGRAPHIC TUNING: Conversational prompt helps Whisper understand the accent, flow, and local vocabulary.
+    formData.append('prompt', 'Chale, I just spent 50 Ghana Cedis on Waakye and Kelewele. I paid my Trotro fare with 10 GHS. Abeg, record this MoMo transfer of 200 CDs to Ama. The price at Melcom was high kraa.')
 
     // 2. Transcribe
     const transcriptionRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
@@ -53,14 +53,16 @@ export default async function handler(
     
     LOCAL CONTEXT:
     - Primary currency: GHS (Ghana Cedis).
-    - If the user says "cedis", "cedi", "pesewas", or just a number, it is GHS.
+    - People often say "CDs" which means "Cedis". If you see "100 CDs", the amount is 100.
+    - If the user says "cedis", "cedi", "CDs", "pesewas", or just a number, it is GHS.
     - "MoMo" refers to Mobile Money.
     - Common categories: Food, Transport (Trotro/Taxi), Utilities, Family, Health, Shopping, Other.
     - Today is: ${today}
 
     RULES:
+    - ALWAYS extract a numerical amount. If you see "100 CDs", amount is 100.
     - Pick the best matching category from: ${categories.join(', ')}
-    - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Waakye Seller").
+    - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Uncle Ato").
     
     Return ONLY JSON: {"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
 
