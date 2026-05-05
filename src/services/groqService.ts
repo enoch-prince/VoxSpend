@@ -12,7 +12,8 @@ const GROQ_API_BASE = 'https://api.groq.com/openai/v1'
 export async function transcribeAudio(blob: Blob, apiKey: string): Promise<string> {
   const formData = new FormData()
   formData.append('file', blob, 'recording.webm')
-  formData.append('model', 'whisper-large-v3-turbo')
+  // formData.append('model', 'whisper-large-v3-turbo')
+  formData.append('model', 'whisper-large-v3')
   formData.append('language', 'en')
   formData.append('response_format', 'text')
   // GEOGRAPHIC TUNING: Conversational prompt helps Whisper understand the accent, flow, and local vocabulary.
