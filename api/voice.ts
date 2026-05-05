@@ -33,7 +33,8 @@ export default async function handler(
     formData.append('model', 'whisper-large-v3')
     formData.append('response_format', 'text')
     // GEOGRAPHIC TUNING: Conversational prompt helps Whisper understand the accent, flow, and local vocabulary.
-    formData.append('prompt', 'Chale, I just spent 50 Ghana Cedis on Waakye and Kelewele. I paid my Trotro fare with 10 GHS. Abeg, record this MoMo transfer of 200 CDs to Ama. The price at Melcom was high kraa.')
+    // formData.append('prompt', 'Chale, I just spent 50 Ghana Cedis on Waakye and Kelewele. I paid my Trotro fare with 10 GHS. Abeg, record this MoMo transfer of 200 CDs to Ama. The price at Melcom was high kraa.')
+    formData.append('prompt', 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.')
     
     // 2. Transcribe
     const transcriptionRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
