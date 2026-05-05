@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useRegisterSW } from 'virtual:pwa-register/vue'
 import { useOnlineStatus } from '@/composables/useOnlineStatus'
 import { useThemeStore } from '@/stores/theme'
 import { useCategoriesStore } from '@/stores/categories'
@@ -42,6 +43,23 @@ const themeStore = useThemeStore()
 const categoriesStore = useCategoriesStore()
 const expensesStore = useExpensesStore()
 const momoStore = useMomoStore()
+
+// Register Service Worker with auto-update
+const { updateServiceWorker } = useRegisterSW({
+  onRegistered(r) {
+    // Check for updates every 60 minutes
+    if (r) {
+      setInterval(() => {
+        console.log('Checking for PWA updates...')
+        r.update()
+      }, 60 * 60 * 1000)
+    }
+  },
+  onNeedRefresh() {
+    console.log('New content available, reloading...')
+    updateServiceWorker(true)
+  }
+})
 
 const showNav = computed(() => !route.meta.hideNav)
 

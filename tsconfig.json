@@ -15,7 +15,7 @@
       "@/*": ["./src/*"]
     },
     "baseUrl": ".",
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node", "vite-plugin-pwa/vue"]
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue", "env.d.ts", "api/**/*.ts"],
   "exclude": ["node_modules", "dist"]
