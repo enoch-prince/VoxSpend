@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "chart.js": "^4.4.7",
     "dexie": "^4.0.11",
     "groq-sdk": "^0.8.0",
