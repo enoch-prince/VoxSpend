@@ -22,6 +22,16 @@
           </div>
         </div>
 
+        <!-- Downloading State (First time setup) -->
+        <div v-else-if="voiceStore.state === 'downloading'" class="voice-modal__processing">
+          <div class="voice-modal__progress-container">
+            <div class="voice-modal__progress-bar" :style="{ width: (voiceStore.downloadProgress * 100) + '%' }"></div>
+          </div>
+          <p class="text-lg font-semibold mt-md">Setting up Voice Engine...</p>
+          <p class="text-secondary text-sm">This happens only once ({{ Math.round(voiceStore.downloadProgress * 100) }}%)</p>
+          <p class="text-tertiary text-xs mt-sm">Privacy-first on-device transcription</p>
+        </div>
+
         <!-- Processing State -->
         <div v-else-if="voiceStore.state === 'processing'" class="voice-modal__processing">
           <div class="voice-modal__spinner"></div>
@@ -217,6 +227,21 @@ const ringStyle = computed(() => {
     border-top-color: $primary;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+  }
+
+  &__progress-container {
+    width: 200px;
+    height: 8px;
+    background: var(--surface-alt);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: $space-md 0;
+  }
+
+  &__progress-bar {
+    height: 100%;
+    background: $primary;
+    transition: width 0.3s ease;
   }
 
   &__confirm {
