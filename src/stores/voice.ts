@@ -36,9 +36,7 @@ export const useVoiceStore = defineStore('voice', () => {
         
         if (status === 'progress') {
           state.value = 'downloading'
-          if (progress.status === 'progress') {
-            downloadProgress.value = progress.progress
-          }
+          downloadProgress.value = progress
         } else if (status === 'ready') {
           // Ready but no audio sent yet
         } else if (status === 'processing') {
