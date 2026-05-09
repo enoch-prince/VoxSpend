@@ -16,7 +16,8 @@ class TranscriptionPipeline {
     if (this.instance === null) {
       this.instance = pipeline(this.task as any, this.model, { 
         progress_callback,
-        quantized: true 
+        // Removing 'quantized: true' to use the more compatible standard version
+        // which avoids the 'Missing required scale' error on some devices.
       } as any);
     }
     return this.instance;
@@ -29,7 +30,9 @@ self.onmessage = async (event) => {
 
   try {
     const transcriber = await TranscriptionPipeline.getInstance((progress: any) => {
-      self.postMessage({ status: 'progress', progress });
+      if (progress.status === 'progress') {
+        self.postMessage({ status: 'progress', progress: progress.progress });
+      }
     });
 
     if (audio) {
