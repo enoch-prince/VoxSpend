@@ -1,22 +1,24 @@
 import { pipeline, env } from '@huggingface/transformers';
 
-// Configuration
+// Configuration for maximum stability
 env.allowLocalModels = false;
 env.useBrowserCache = true;
+// Disable multi-threading to avoid bad_alloc and fusion errors on mobile
+(env.backends.onnx as any).wasm.numThreads = 1;
 
 /**
  * Singleton class for the transcription pipeline
  */
 class TranscriptionPipeline {
   static task = 'automatic-speech-recognition';
-  static model = 'Xenova/whisper-tiny.en';
+  static model = 'Xenova/whisper-tiny'; // Multilingual model is often more stable
   static instance: any = null;
 
   static async getInstance(progress_callback: any = null) {
     if (this.instance === null) {
       this.instance = pipeline(this.task as any, this.model, { 
         progress_callback,
-        dtype: 'fp16', // Half precision: stable, small enough for mobile, and avoids quantization bugs
+        quantized: true, // Use standard quantization for mobile support
       } as any);
     }
     return this.instance;
@@ -40,6 +42,8 @@ self.onmessage = async (event) => {
       const output = await transcriber(audio, {
         chunk_length_s: 30,
         stride_length_s: 5,
+        language: 'english', // Explicitly set language for the multilingual model
+        task: 'transcribe',
         return_timestamps: false,
       });
 
