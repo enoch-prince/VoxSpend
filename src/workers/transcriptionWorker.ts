@@ -16,7 +16,7 @@ class TranscriptionPipeline {
     if (this.instance === null) {
       this.instance = pipeline(this.task as any, this.model, { 
         progress_callback,
-        dtype: 'fp32', // Explicitly force full precision to avoid quantization errors
+        dtype: 'q8', // INT8 quantization: balanced for mobile memory and stability
       } as any);
     }
     return this.instance;
@@ -40,8 +40,6 @@ self.onmessage = async (event) => {
       const output = await transcriber(audio, {
         chunk_length_s: 30,
         stride_length_s: 5,
-        // language: 'english',
-        // task: 'transcribe',
         return_timestamps: false,
       });
 
