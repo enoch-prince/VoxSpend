@@ -16,7 +16,7 @@ class TranscriptionPipeline {
     if (this.instance === null) {
       this.instance = pipeline(this.task as any, this.model, { 
         progress_callback,
-        dtype: 'q8', // INT8 quantization: balanced for mobile memory and stability
+        dtype: 'fp16', // Half precision: stable, small enough for mobile, and avoids quantization bugs
       } as any);
     }
     return this.instance;
