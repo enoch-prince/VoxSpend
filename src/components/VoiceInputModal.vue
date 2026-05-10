@@ -22,15 +22,6 @@
           </div>
         </div>
 
-        <!-- Downloading State (First time setup) -->
-        <div v-else-if="voiceStore.state === 'downloading'" class="voice-modal__processing">
-          <div class="voice-modal__progress-container">
-            <div class="voice-modal__progress-bar" :style="{ width: voiceStore.downloadProgress + '%' }"></div>
-          </div>
-          <p class="text-lg font-semibold mt-md">Setting up Voice Engine...</p>
-          <p class="text-secondary text-sm">This happens only once ({{ Math.round(voiceStore.downloadProgress) }}%)</p>
-          <p class="text-tertiary text-xs mt-sm">Privacy-first on-device transcription</p>
-        </div>
 
         <!-- Processing State -->
         <div v-else-if="voiceStore.state === 'processing'" class="voice-modal__processing">

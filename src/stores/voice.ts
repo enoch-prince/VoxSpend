@@ -5,7 +5,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useVoiceRecorder } from '@/services/voiceRecorder'
-import { parseExpense } from '@/services/groqService'
+import { transcribeAudio, parseExpense } from '@/services/groqService'
 import { useUserStore } from './user'
 import { useExpensesStore } from './expenses'
 import { useCategoriesStore } from './categories'
@@ -21,37 +21,7 @@ export const useVoiceStore = defineStore('voice', () => {
   const downloadProgress = ref(0)
 
   const recorder = useVoiceRecorder()
-  let worker: Worker | null = null
 
-  // ---- Worker Initialization ----
-  function getWorker() {
-    if (!worker) {
-      worker = new Worker(
-        new URL('@/workers/transcriptionWorker.ts', import.meta.url),
-        { type: 'module' }
-      )
-      
-      worker.onmessage = (e) => {
-        const { status, progress, transcript: text, error } = e.data
-        
-        if (status === 'progress') {
-          state.value = 'downloading'
-          downloadProgress.value = progress
-        } else if (status === 'ready') {
-          // Ready but no audio sent yet
-        } else if (status === 'processing') {
-          state.value = 'processing'
-        } else if (status === 'success') {
-          transcript.value = text
-          processTranscript(text)
-        } else if (status === 'error') {
-          state.value = 'error'
-          errorMessage.value = error || 'Transcription failed'
-        }
-      }
-    }
-    return worker
-  }
 
   // ---- Actions ----
   async function startRecording() {
@@ -73,13 +43,52 @@ export const useVoiceStore = defineStore('voice', () => {
       state.value = 'processing'
       const blob = await recorder.stopRecording()
       
-      // 1. Decode audio to 16kHz Float32Array (required by Whisper)
-      const audioData = await decodeAudio(blob)
-      
-      // 2. Send to worker for on-device transcription
-      const transcriptionWorker = getWorker()
-      transcriptionWorker.postMessage({ audio: audioData })
-      
+      const userStore = useUserStore()
+      const categoriesStore = useCategoriesStore()
+
+      if (userStore.profile.groqApiKey) {
+        // Use direct service if user provided their own key
+        const text = await transcribeAudio(blob, userStore.profile.groqApiKey)
+        transcript.value = text
+        await processTranscript(text)
+      } else {
+        // Use Vercel proxy (does both transcription and parsing)
+        const base64Audio = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.readAsDataURL(blob)
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1])
+          reader.onerror = reject
+        })
+
+        const response = await fetch('/api/voice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio: base64Audio,
+            categories: categoriesStore.categoryNames
+          })
+        })
+
+        if (!response.ok) {
+          const err = await response.json()
+          throw new Error(err.message || 'Processing failed at proxy')
+        }
+
+        const data = await response.json()
+        transcript.value = data.transcript
+        
+        parsedExpense.value = {
+          ...data.result,
+          amount: Math.abs(data.result.amount || 0),
+          currency: data.result.currency || 'GHS',
+          type: data.result.type === 'income' ? 'income' : 'expense',
+          category: data.result.category || 'Other',
+          merchant: data.result.merchant || 'Unknown',
+          note: data.result.note || data.transcript,
+          date: data.result.date || new Date().toISOString().split('T')[0]
+        }
+        state.value = 'confirm'
+      }
     } catch (err) {
       state.value = 'error'
       errorMessage.value = err instanceof Error ? err.message : 'Processing failed'
@@ -176,12 +185,7 @@ export const useVoiceStore = defineStore('voice', () => {
   }
 
   // ---- Helpers ----
-  async function decodeAudio(blob: Blob): Promise<Float32Array> {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 })
-    const arrayBuffer = await blob.arrayBuffer()
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-    return audioBuffer.getChannelData(0)
-  }
+  // Removed worker helper functions
 
   return {
     state,
