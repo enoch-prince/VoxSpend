@@ -18,7 +18,8 @@ class TranscriptionPipeline {
     if (this.instance === null) {
       this.instance = pipeline(this.task as any, this.model, { 
         progress_callback,
-        quantized: true, // Use standard quantization for mobile support
+        dtype: 'q8', // Explicitly demand 8-bit to avoid the 4-bit 'MatMulNBits' crash
+        device: 'wasm', // Ensure it uses WASM explicitly
       } as any);
     }
     return this.instance;
