@@ -16,8 +16,7 @@ class TranscriptionPipeline {
     if (this.instance === null) {
       this.instance = pipeline(this.task as any, this.model, { 
         progress_callback,
-        // Removing 'quantized: true' to use the more compatible standard version
-        // which avoids the 'Missing required scale' error on some devices.
+        dtype: 'fp32', // Explicitly force full precision to avoid quantization errors
       } as any);
     }
     return this.instance;
