@@ -40,8 +40,8 @@ self.onmessage = async (event) => {
       const output = await transcriber(audio, {
         chunk_length_s: 30,
         stride_length_s: 5,
-        language: 'english',
-        task: 'transcribe',
+        // language: 'english',
+        // task: 'transcribe',
         return_timestamps: false,
       });
 
