@@ -55,14 +55,15 @@ export default async function handler(
     
     LOCAL CONTEXT:
     - Primary currency: GHS (Ghana Cedis).
-    - People often say "CDs" which means "Cedis". If you see "100 CDs", the amount is 100.
-    - If the user says "cedis", "cedi", "CDs", "pesewas", or just a number, it is GHS.
+    - "CDs" or "gunna CDs" means "Cedis". Example: "100 CDs" = 100 GHS.
+    - Handle word-form numbers: "a hundred and fifty thousand" = 150000.
     - "MoMo" refers to Mobile Money.
     - Common categories: Food, Transport (Trotro/Taxi), Utilities, Family, Health, Shopping, Other.
     - Today is: ${today}
 
     RULES:
-    - ALWAYS extract a numerical amount. If you see "100 CDs", amount is 100.
+    - ALWAYS extract a numerical amount. Convert words to numbers (e.g., "ten" to 10).
+    - If the user mentions a large number like "a hundred thousand", ensure all zeros are captured.
     - Pick the best matching category from: ${categories.join(', ')}
     - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Uncle Ato").
     
