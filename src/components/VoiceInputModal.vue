@@ -109,6 +109,13 @@
           </div>
         </div>
 
+        <!-- Offline Saved State -->
+        <div v-else-if="voiceStore.state === 'offline-saved'" class="voice-modal__processing">
+          <span class="material-symbols-rounded icon-lg text-primary mb-sm">cloud_done</span>
+          <p class="text-lg font-semibold mt-md">Saved Offline</p>
+          <p class="text-secondary text-sm">Will sync automatically when online.</p>
+        </div>
+
         <!-- Error State -->
         <div v-else-if="voiceStore.state === 'error'" class="voice-modal__error">
           <span class="material-symbols-rounded icon-lg text-danger">error</span>

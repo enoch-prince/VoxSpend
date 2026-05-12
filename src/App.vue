@@ -6,6 +6,10 @@
         <span class="material-symbols-rounded icon-sm">cloud_off</span>
         You're offline — expenses are saved locally
       </div>
+      <div v-else-if="voiceStore.pendingCount > 0" class="offline-banner" style="background: var(--primary); color: white;">
+        <span class="material-symbols-rounded icon-sm spin-animation">sync</span>
+        Syncing {{ voiceStore.pendingCount }} voice note(s)...
+      </div>
     </transition>
 
     <!-- Main content -->
@@ -24,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
 import { useOnlineStatus } from '@/composables/useOnlineStatus'
@@ -32,6 +36,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useCategoriesStore } from '@/stores/categories'
 import { useExpensesStore } from '@/stores/expenses'
 import { useMomoStore } from '@/stores/momo'
+import { useVoiceStore } from '@/stores/voice'
 import BottomNav from '@/components/BottomNav.vue'
 import VoiceInputModal from '@/components/VoiceInputModal.vue'
 
@@ -43,6 +48,14 @@ const themeStore = useThemeStore()
 const categoriesStore = useCategoriesStore()
 const expensesStore = useExpensesStore()
 const momoStore = useMomoStore()
+const voiceStore = useVoiceStore()
+
+// Watch online status to trigger sync
+watch(isOnline, (online) => {
+  if (online) {
+    voiceStore.syncPendingNotes()
+  }
+})
 
 // Register Service Worker with auto-update
 const { updateServiceWorker } = useRegisterSW({
@@ -67,6 +80,11 @@ onMounted(async () => {
   await categoriesStore.initialize()
   await expensesStore.fetchExpenses()
   await momoStore.fetchAccounts()
+  
+  await voiceStore.updatePendingCount()
+  if (isOnline.value) {
+    voiceStore.syncPendingNotes()
+  }
 })
 </script>
 
@@ -79,6 +97,9 @@ onMounted(async () => {
 
   &.has-nav {
     padding-bottom: var(--bottom-nav-height);
-  }
+}
+
+.spin-animation {
+  animation: spin 2s linear infinite;
 }
 </style>

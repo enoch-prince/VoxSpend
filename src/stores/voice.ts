@@ -9,9 +9,10 @@ import { transcribeAudio, parseExpense } from '@/services/groqService'
 import { useUserStore } from './user'
 import { useExpensesStore } from './expenses'
 import { useCategoriesStore } from './categories'
+import { db, now } from '@/services/database'
 import type { ParsedExpense } from '@/types'
 
-export type VoiceState = 'idle' | 'recording' | 'downloading' | 'processing' | 'confirm' | 'error'
+export type VoiceState = 'idle' | 'recording' | 'downloading' | 'processing' | 'confirm' | 'error' | 'offline-saved'
 
 export const useVoiceStore = defineStore('voice', () => {
   const state = ref<VoiceState>('idle')
@@ -19,10 +20,13 @@ export const useVoiceStore = defineStore('voice', () => {
   const parsedExpense = ref<ParsedExpense | null>(null)
   const errorMessage = ref('')
   const downloadProgress = ref(0)
+  const pendingCount = ref(0)
 
   const recorder = useVoiceRecorder()
 
-
+  async function updatePendingCount() {
+    pendingCount.value = await db.pendingVoiceNotes.count()
+  }
   // ---- Actions ----
   async function startRecording() {
     try {
@@ -43,6 +47,18 @@ export const useVoiceStore = defineStore('voice', () => {
       state.value = 'processing'
       const blob = await recorder.stopRecording()
       
+      if (!navigator.onLine) {
+        // Save to IndexedDB if offline
+        await db.pendingVoiceNotes.add({
+          audio: blob,
+          createdAt: now()
+        })
+        await updatePendingCount()
+        state.value = 'offline-saved'
+        setTimeout(() => reset(), 3000) // Auto-reset after showing the offline message
+        return
+      }
+
       const userStore = useUserStore()
       const categoriesStore = useCategoriesStore()
 
@@ -185,7 +201,76 @@ export const useVoiceStore = defineStore('voice', () => {
   }
 
   // ---- Helpers ----
-  // Removed worker helper functions
+  
+  async function syncPendingNotes() {
+    if (!navigator.onLine) return
+    
+    const pendingNotes = await db.pendingVoiceNotes.toArray()
+    if (pendingNotes.length === 0) return
+
+    const userStore = useUserStore()
+    const categoriesStore = useCategoriesStore()
+    const expensesStore = useExpensesStore()
+
+    for (const note of pendingNotes) {
+      try {
+        let transcriptText = ''
+        let parsedResult: ParsedExpense | null = null
+
+        if (userStore.profile.groqApiKey) {
+          transcriptText = await transcribeAudio(note.audio, userStore.profile.groqApiKey)
+          parsedResult = await parseExpense(transcriptText, userStore.profile.groqApiKey, categoriesStore.categoryNames)
+        } else {
+          const base64Audio = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.readAsDataURL(note.audio)
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1])
+            reader.onerror = reject
+          })
+
+          const response = await fetch('/api/voice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: base64Audio, categories: categoriesStore.categoryNames })
+          })
+
+          if (!response.ok) throw new Error('Proxy failed')
+          const data = await response.json()
+          transcriptText = data.transcript
+          parsedResult = {
+            ...data.result,
+            amount: Math.abs(data.result.amount || 0),
+            currency: data.result.currency || 'GHS',
+            type: data.result.type === 'income' ? 'income' : 'expense',
+            category: data.result.category || 'Other',
+            merchant: data.result.merchant || 'Unknown',
+            note: data.result.note || data.transcript,
+            date: data.result.date || note.createdAt.split('T')[0]
+          }
+        }
+
+        if (parsedResult) {
+          await expensesStore.addExpense({
+            amount: parsedResult.amount,
+            currency: parsedResult.currency,
+            type: parsedResult.type,
+            category: parsedResult.category,
+            merchant: parsedResult.merchant,
+            note: parsedResult.note,
+            date: parsedResult.date
+          })
+          
+          if (note.id) {
+            await db.pendingVoiceNotes.delete(note.id)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync offline voice note', err)
+      }
+    }
+    
+    await updatePendingCount()
+  }
 
   return {
     state,
@@ -193,6 +278,7 @@ export const useVoiceStore = defineStore('voice', () => {
     parsedExpense,
     errorMessage,
     downloadProgress,
+    pendingCount,
     isRecording: recorder.isRecording,
     duration: recorder.duration,
     audioLevel: recorder.audioLevel,
@@ -202,6 +288,8 @@ export const useVoiceStore = defineStore('voice', () => {
     confirmExpense,
     updateParsed,
     reset,
-    cancel
+    cancel,
+    updatePendingCount,
+    syncPendingNotes
   }
 })

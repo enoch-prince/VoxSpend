@@ -63,6 +63,13 @@ export interface SyncQueueItem {
   retries: number
 }
 
+export interface PendingVoiceNote {
+  id?: number
+  audio: Blob
+  createdAt: string
+}
+
+
 export interface CategoryBreakdown {
   category: string
   color: string
