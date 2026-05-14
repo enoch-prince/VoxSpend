@@ -1,5 +1,15 @@
-import { mutation } from "./_generated/server";
+import { mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+
+export const getActiveSubscriptions = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("pushSubscriptions")
+      .filter((q) => q.eq(q.field("enabled"), true))
+      .collect();
+  },
+});
 
 export const saveSubscription = mutation({
   args: {

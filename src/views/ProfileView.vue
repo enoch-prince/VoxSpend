@@ -139,7 +139,7 @@ import { useMomoStore } from '@/stores/momo'
 import { useExpensesStore } from '@/stores/expenses'
 import { useCategoriesStore } from '@/stores/categories'
 import { usePwaInstall } from '@/composables/usePwaInstall'
-import { convex } from '@/services/convexClient'
+import { convex, api } from '@/services/convexClient'
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
@@ -183,11 +183,11 @@ async function toggleNotifications() {
         const subJson = sub.toJSON()
         if (!subJson.endpoint || !subJson.keys) throw new Error('Invalid subscription')
 
-        await convex.mutation('subscriptions:saveSubscription' as any, {
+        await convex.mutation(api.subscriptions.saveSubscription, {
           endpoint: subJson.endpoint,
           keys: {
-            p256dh: subJson.keys.p256dh,
-            auth: subJson.keys.auth
+            p256dh: subJson.keys.p256dh as string,
+            auth: subJson.keys.auth as string
           }
         })
 
@@ -204,7 +204,7 @@ async function toggleNotifications() {
       const registration = await navigator.serviceWorker.ready
       const sub = await registration.pushManager.getSubscription()
       if (sub) {
-        await convex.mutation('subscriptions:removeSubscription' as any, {
+        await convex.mutation(api.subscriptions.removeSubscription, {
           endpoint: sub.endpoint
         })
         await sub.unsubscribe()

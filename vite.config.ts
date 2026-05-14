@@ -19,7 +19,7 @@ export default defineConfig({
       manifest: {
         name: "VoxSpend — Track Spending With Your Voice",
         short_name: "VoxSpend",
-        description: "AI-powered voice expense tracking for Ghana",
+        description: "AI-powered voice expense tracking",
         theme_color: "#2D7FF9",
         background_color: "#F0F4F8",
         display: "standalone",
@@ -64,6 +64,11 @@ export default defineConfig({
             },
           },
         ],
+      },
+      devOptions: {
+        enabled: true,
+        type: "module",
+        navigateFallback: "index.html",
       },
     }),
   ],

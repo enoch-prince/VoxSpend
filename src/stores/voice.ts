@@ -10,7 +10,7 @@ import { useUserStore } from './user'
 import { useExpensesStore } from './expenses'
 import { useCategoriesStore } from './categories'
 import { db, now } from '@/services/database'
-import { convex } from '@/services/convexClient'
+import { convex, api } from '@/services/convexClient'
 import type { ParsedExpense } from '@/types'
 
 export type VoiceState = 'idle' | 'recording' | 'downloading' | 'processing' | 'confirm' | 'error' | 'offline-saved'
@@ -77,7 +77,7 @@ export const useVoiceStore = defineStore('voice', () => {
           reader.onerror = reject
         })
 
-        const data: any = await convex.action('voice:transcribeAndParse' as any, {
+        const data: any = await convex.action(api.voice.transcribeAndParse, {
           audioBase64: base64Audio,
           categories: categoriesStore.categoryNames
         })
@@ -219,7 +219,7 @@ export const useVoiceStore = defineStore('voice', () => {
             reader.onerror = reject
           })
 
-          const data: any = await convex.action('voice:transcribeAndParse' as any, {
+          const data: any = await convex.action(api.voice.transcribeAndParse, {
             audioBase64: base64Audio,
             categories: categoriesStore.categoryNames
           })

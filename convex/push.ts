@@ -15,16 +15,6 @@ if (publicVapidKey !== "missing" && privateVapidKey !== "missing") {
   );
 }
 
-export const getActiveSubscriptions = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db
-      .query("pushSubscriptions")
-      .filter((q) => q.eq(q.field("enabled"), true))
-      .collect();
-  },
-});
-
 export const sendReminders = internalAction({
   args: {},
   handler: async (ctx) => {
@@ -33,7 +23,7 @@ export const sendReminders = internalAction({
       return;
     }
 
-    const subs = await ctx.runQuery(internal.push.getActiveSubscriptions);
+    const subs = await ctx.runQuery(internal.subscriptions.getActiveSubscriptions);
     
     const notificationPayload = JSON.stringify({
       title: "Expense Reminder",
