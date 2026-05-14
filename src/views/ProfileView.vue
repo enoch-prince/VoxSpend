@@ -14,7 +14,7 @@
         <p class="text-sm text-secondary">GH₵ · Ghana Cedis</p>
       </div>
 
-      <!-- Theme & Notifications -->
+      <!-- Theme Toggle -->
       <div class="neo-card-sm mb-md">
         <div class="profile-view__row" @click="themeStore.toggleMode">
           <span class="material-symbols-rounded text-secondary">
@@ -22,14 +22,6 @@
           </span>
           <span class="text-sm font-semibold flex-1">Dark Mode</span>
           <div class="profile-view__toggle" :class="{ 'profile-view__toggle--on': themeStore.mode === 'dark' }">
-            <div class="profile-view__toggle-knob"></div>
-          </div>
-        </div>
-        <div class="profile-view__divider"></div>
-        <div class="profile-view__row" @click="toggleNotifications">
-          <span class="material-symbols-rounded text-secondary">notifications_active</span>
-          <span class="text-sm font-semibold flex-1">Daily Reminders</span>
-          <div class="profile-view__toggle" :class="{ 'profile-view__toggle--on': userStore.profile.notificationsEnabled }">
             <div class="profile-view__toggle-knob"></div>
           </div>
         </div>
@@ -139,7 +131,6 @@ import { useMomoStore } from '@/stores/momo'
 import { useExpensesStore } from '@/stores/expenses'
 import { useCategoriesStore } from '@/stores/categories'
 import { usePwaInstall } from '@/composables/usePwaInstall'
-import { convex } from '@/services/convexClient'
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
@@ -165,56 +156,6 @@ async function addCategory() {
   if (!newCatName.value.trim()) return
   await categoriesStore.addCategory(newCatName.value.trim(), 'label', newCatColor.value)
   newCatName.value = ''
-}
-
-async function toggleNotifications() {
-  const newState = !userStore.profile.notificationsEnabled
-
-  if (newState) {
-    const permission = await Notification.requestPermission()
-    if (permission === 'granted') {
-      try {
-        const registration = await navigator.serviceWorker.ready
-        const sub = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
-        })
-        
-        const subJson = sub.toJSON()
-        if (!subJson.endpoint || !subJson.keys) throw new Error('Invalid subscription')
-
-        await convex.mutation('subscriptions:saveSubscription' as any, {
-          endpoint: subJson.endpoint,
-          keys: {
-            p256dh: subJson.keys.p256dh,
-            auth: subJson.keys.auth
-          }
-        })
-
-        userStore.updateProfile({ notificationsEnabled: true })
-      } catch (err) {
-        console.error('Failed to subscribe to push', err)
-        alert('Failed to enable notifications. Ensure your device supports Web Push.')
-      }
-    } else {
-      alert('Notification permission denied.')
-    }
-  } else {
-    try {
-      const registration = await navigator.serviceWorker.ready
-      const sub = await registration.pushManager.getSubscription()
-      if (sub) {
-        await convex.mutation('subscriptions:removeSubscription' as any, {
-          endpoint: sub.endpoint
-        })
-        await sub.unsubscribe()
-      }
-      userStore.updateProfile({ notificationsEnabled: false })
-    } catch (err) {
-      console.error('Failed to unsubscribe', err)
-      userStore.updateProfile({ notificationsEnabled: false })
-    }
-  }
 }
 </script>
 

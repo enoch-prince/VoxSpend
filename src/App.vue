@@ -96,7 +96,7 @@ onMounted(async () => {
   position: relative;
 
   &.has-nav {
-    padding-bottom: var(--bottom-nav-height); }
+    padding-bottom: var(--bottom-nav-height);
 }
 
 .spin-animation {

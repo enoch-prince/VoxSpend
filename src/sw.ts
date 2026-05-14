@@ -52,50 +52,14 @@ registerRoute(
   })
 )
 
-// Listen for push notifications
+// Listen for push notifications (future)
 self.addEventListener('push', (event) => {
-  if (!event.data) return
-
-  try {
-    const data = event.data.json()
-    
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'VoxSpend', {
-        body: data.body || '',
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        data: data.url ? { url: data.url } : undefined
-      })
-    )
-  } catch (err) {
-    // Fallback if not JSON
-    event.waitUntil(
-      self.registration.showNotification('VoxSpend', {
-        body: event.data.text(),
-        icon: '/icons/icon-192.png'
-      })
-    )
-  }
-})
-
-// Handle notification click
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
-
-  const urlToOpen = event.notification.data?.url || '/'
-
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Check if there is already a window/tab open with the target URL
-      for (const client of windowClients) {
-        if (client.url.includes(urlToOpen) && 'focus' in client) {
-          return client.focus()
-        }
-      }
-      // If not, open a new window
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(urlToOpen)
-      }
+  const data = event.data?.json()
+  if (data) {
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png'
     })
-  )
+  }
 })
