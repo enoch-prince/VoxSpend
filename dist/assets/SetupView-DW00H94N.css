@@ -1,0 +1,1 @@
+.setup{background:var(--bg);display:flex;flex-direction:column;align-content:center;flex-wrap:wrap;justify-content:center}.setup__content{max-width:360px;margin:0 auto}.setup__error{display:flex;align-items:center;gap:.5rem;padding:1rem;background:#f43f5e1a;border-radius:14px;color:#f43f5e;font-size:.8125rem}
