@@ -10,6 +10,7 @@ import { useUserStore } from './user'
 import { useExpensesStore } from './expenses'
 import { useCategoriesStore } from './categories'
 import { db, now } from '@/services/database'
+import { convex } from '@/services/convexClient'
 import type { ParsedExpense } from '@/types'
 
 export type VoiceState = 'idle' | 'recording' | 'downloading' | 'processing' | 'confirm' | 'error' | 'offline-saved'
@@ -76,21 +77,11 @@ export const useVoiceStore = defineStore('voice', () => {
           reader.onerror = reject
         })
 
-        const response = await fetch('/api/voice', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            audio: base64Audio,
-            categories: categoriesStore.categoryNames
-          })
+        const data: any = await convex.action('voice:transcribeAndParse' as any, {
+          audioBase64: base64Audio,
+          categories: categoriesStore.categoryNames
         })
 
-        if (!response.ok) {
-          const err = await response.json()
-          throw new Error(err.message || 'Processing failed at proxy')
-        }
-
-        const data = await response.json()
         transcript.value = data.transcript
         
         parsedExpense.value = {
@@ -228,14 +219,11 @@ export const useVoiceStore = defineStore('voice', () => {
             reader.onerror = reject
           })
 
-          const response = await fetch('/api/voice', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ audio: base64Audio, categories: categoriesStore.categoryNames })
+          const data: any = await convex.action('voice:transcribeAndParse' as any, {
+            audioBase64: base64Audio,
+            categories: categoriesStore.categoryNames
           })
-
-          if (!response.ok) throw new Error('Proxy failed')
-          const data = await response.json()
+          
           transcriptText = data.transcript
           parsedResult = {
             ...data.result,

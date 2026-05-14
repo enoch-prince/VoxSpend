@@ -40,6 +40,7 @@ export interface UserProfile {
   currency: string
   groqApiKey: string
   onboardingComplete: boolean
+  notificationsEnabled?: boolean
   createdAt: string
 }
 
