@@ -4,7 +4,13 @@
       <transition name="page" mode="out-in">
         <div :key="currentSlide" class="onboarding__slide">
           <div class="onboarding__icon-wrap" :style="{ background: slides[currentSlide].bg }">
-            <span class="material-symbols-rounded" style="font-size:48px;color:#fff;">
+            <img
+              v-if="slides[currentSlide].logo"
+              :src="slides[currentSlide].logo"
+              class="onboarding__logo"
+              alt="VoxSpend Logo"
+            />
+            <span v-else class="material-symbols-rounded" style="font-size:48px;color:#fff;">
               {{ slides[currentSlide].icon }}
             </span>
           </div>
@@ -63,21 +69,22 @@ const currentSlide = ref(0)
 
 const slides = [
   {
+    logo: '/icons/icon-192.png',
+    icon: '',
+    title: 'Welcome to VoxSpend',
+    desc: 'Most people lose track of their spending because logging expenses is too tedious. VoxSpend fixes that!',
+    bg: 'linear-gradient(135deg, rgb(175 216 255 / 55%), rgb(51 131 255))'
+  },
+  {
     icon: 'mic',
     title: 'Track with your voice',
     desc: 'Just speak naturally — "I spent 20 cedis on lunch at Papaye" — and VoxSpend handles the rest.',
     bg: 'linear-gradient(135deg, #2D7FF9, #5B9DFC)'
   },
   {
-    icon: 'psychology',
-    title: 'AI-powered parsing',
-    desc: 'Groq AI instantly transcribes and structures your expenses into categories, amounts, and merchants.',
-    bg: 'linear-gradient(135deg, #8B5CF6, #A78BFA)'
-  },
-  {
-    icon: 'cloud_off',
-    title: 'Works offline',
-    desc: 'Your data is stored locally first. Everything syncs when you\'re back online. No data loss, ever.',
+    icon: 'cloud_sync',
+    title: 'Your data, always safe',
+    desc: 'If you go offline mid-recording, your audio is saved locally and automatically processed the moment your connection returns. No data loss, ever.',
     bg: 'linear-gradient(135deg, #10B981, #34D399)'
   }
 ]
@@ -102,6 +109,13 @@ const slides = [
     align-items: center;
     justify-content: center;
     box-shadow: 0 8px 30px rgba(45, 127, 249, 0.25);
+  }
+
+  &__logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    object-fit: contain;
   }
 
   &__dot {

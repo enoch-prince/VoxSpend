@@ -12,31 +12,6 @@
         <input v-model="name" class="neo-input" placeholder="e.g. Kwame Asante" id="setup-name" />
       </div>
 
-      <!-- API Key -->
-      <div class="setup__field mb-lg">
-        <p class="text-xs text-tertiary mb-sm">
-          Optional. You can use our shared beta key for free, or use your own for higher limits.
-        </p>
-        <div class="flex gap-sm">
-          <input
-            v-model="apiKey"
-            :type="showKey ? 'text' : 'password'"
-            class="neo-input flex-1"
-            placeholder="gsk_..."
-            id="setup-api-key"
-          />
-          <button class="neo-button neo-button--ghost" @click="showKey = !showKey" style="padding:8px 12px;">
-            <span class="material-symbols-rounded icon-sm">{{ showKey ? 'visibility_off' : 'visibility' }}</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Validation hint -->
-      <div v-if="validationError" class="setup__error mb-md">
-        <span class="material-symbols-rounded icon-sm">warning</span>
-        <span class="text-sm">{{ validationError }}</span>
-      </div>
-
       <!-- Submit -->
       <button
         class="neo-button neo-button--primary w-full"
@@ -47,10 +22,6 @@
       >
         Start Tracking
       </button>
-
-      <p class="text-xs text-tertiary mt-lg" style="text-align:center;">
-        Your API key is stored locally on your device and never shared.
-      </p>
     </div>
   </div>
 </template>
@@ -64,8 +35,6 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const name = ref('')
-const apiKey = ref('')
-const showKey = ref(false)
 const validationError = ref('')
 
 const canSubmit = computed(() => name.value.trim().length >= 2)
@@ -78,12 +47,7 @@ function handleSubmit() {
     return
   }
 
-  if (apiKey.value.trim() && !apiKey.value.trim().startsWith('gsk_')) {
-    validationError.value = 'API key should start with gsk_'
-    return
-  }
-
-  userStore.completeOnboarding(name.value.trim(), apiKey.value.trim())
+  userStore.completeOnboarding(name.value.trim(), '')
   router.replace('/')
 }
 </script>
