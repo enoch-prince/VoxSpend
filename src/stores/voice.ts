@@ -44,19 +44,18 @@ export const useVoiceStore = defineStore('voice', () => {
   }
 
   async function stopAndProcess() {
+    state.value = 'processing'
+    let blob: Blob | null = null
+
     try {
-      state.value = 'processing'
-      const blob = await recorder.stopRecording()
+      blob = await recorder.stopRecording()
       
       if (!navigator.onLine) {
         // Save to IndexedDB if offline
-        await db.pendingVoiceNotes.add({
-          audio: blob,
-          createdAt: now()
-        })
+        await db.pendingVoiceNotes.add({ audio: blob, createdAt: now() })
         await updatePendingCount()
         state.value = 'offline-saved'
-        setTimeout(() => reset(), 3000) // Auto-reset after showing the offline message
+        setTimeout(() => reset(), 3000)
         return
       }
 
@@ -69,10 +68,10 @@ export const useVoiceStore = defineStore('voice', () => {
         transcript.value = text
         await processTranscript(text)
       } else {
-        // Use Vercel proxy (does both transcription and parsing)
+        // Use Convex action (does both transcription and parsing)
         const base64Audio = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader()
-          reader.readAsDataURL(blob)
+          reader.readAsDataURL(blob!)
           reader.onloadend = () => resolve((reader.result as string).split(',')[1])
           reader.onerror = reject
         })
@@ -97,10 +96,27 @@ export const useVoiceStore = defineStore('voice', () => {
         state.value = 'confirm'
       }
     } catch (err) {
-      state.value = 'error'
-      errorMessage.value = err instanceof Error ? err.message : 'Processing failed'
+      const msg = err instanceof Error ? err.message.toLowerCase() : ''
+      const isNetworkError = msg.includes('fetch') || msg.includes('network') || msg.includes('failed to connect') || !navigator.onLine
+      
+      if (isNetworkError && blob) {
+        // Internet dropped mid-processing — save audio to queue silently
+        try {
+          await db.pendingVoiceNotes.add({ audio: blob, createdAt: now() })
+          await updatePendingCount()
+          state.value = 'offline-saved'
+          setTimeout(() => reset(), 3000)
+        } catch {
+          state.value = 'error'
+          errorMessage.value = 'No internet. Failed to save recording locally.'
+        }
+      } else {
+        state.value = 'error'
+        errorMessage.value = err instanceof Error ? err.message : 'Processing failed'
+      }
     }
   }
+
 
   async function processTranscript(text: string) {
     if (!text || text.trim().length < 2) {

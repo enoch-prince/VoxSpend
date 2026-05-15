@@ -51,7 +51,7 @@ export async function parseExpense(
   const today = new Date().toISOString().split('T')[0]
   const categoryList = categories.join(', ')
 
-  const systemPrompt = `You are a Ghanaian expense parser. Extract structured data from: "${transcript}"
+  const systemPrompt = `You are a Ghanaian expense parser. The user may mention multiple purchases. Extract ONLY the FIRST expense mentioned from: "${transcript}"
   
   LOCAL CONTEXT:
   - Primary currency: GHS (Ghana Cedis).
@@ -61,12 +61,14 @@ export async function parseExpense(
   - Today is: ${today}
 
   RULES:
-  - ALWAYS extract a numerical amount. If you see "100 CDs", amount is 100.
+  - ALWAYS extract a single, numerical amount. Never return 0 unless explicitly stated.
+  - If multiple expenses are mentioned, extract ONLY the FIRST one.
   - Pick the best matching category from: ${categoryList}
   - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Uncle Ato").
-  - note should capture any extra detail from the speech
+  - note should capture any extra detail from the speech.
+  - You MUST return valid JSON with numeric amount field.
   
-  Return ONLY JSON: {"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
+  Return ONLY valid JSON (no markdown, no explanation): {"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
 
   if (!apiKey || apiKey.trim() === '') {
     throw new Error('Groq API Key is missing. Please add it in Settings.')
