@@ -18,7 +18,7 @@ export type VoiceState = 'idle' | 'recording' | 'downloading' | 'processing' | '
 export const useVoiceStore = defineStore('voice', () => {
   const state = ref<VoiceState>('idle')
   const transcript = ref('')
-  const parsedExpense = ref<ParsedExpense | null>(null)
+  const parsedExpenses = ref<ParsedExpense[]>([])
   const errorMessage = ref('')
   const downloadProgress = ref(0)
   const pendingCount = ref(0)
@@ -34,7 +34,7 @@ export const useVoiceStore = defineStore('voice', () => {
       state.value = 'recording'
       errorMessage.value = ''
       transcript.value = ''
-      parsedExpense.value = null
+      parsedExpenses.value = []
       downloadProgress.value = 0
       await recorder.startRecording()
     } catch (err) {
@@ -83,16 +83,21 @@ export const useVoiceStore = defineStore('voice', () => {
 
         transcript.value = data.transcript
         
-        parsedExpense.value = {
-          ...data.result,
-          amount: Math.abs(data.result.amount || 0),
-          currency: data.result.currency || 'GHS',
-          type: data.result.type === 'income' ? 'income' : 'expense',
-          category: data.result.category || 'Other',
-          merchant: data.result.merchant || 'Unknown',
-          note: data.result.note || data.transcript,
-          date: data.result.date || new Date().toISOString().split('T')[0]
+        parsedExpenses.value = (data.result.results || []).map((res: any) => ({
+          ...res,
+          amount: Math.abs(res.amount || 0),
+          currency: res.currency || 'GHS',
+          type: res.type === 'income' ? 'income' : 'expense',
+          category: res.category || 'Other',
+          merchant: res.merchant || 'Unknown',
+          note: res.note || data.transcript,
+          date: res.date || new Date().toISOString().split('T')[0]
+        }))
+
+        if (parsedExpenses.value.length === 0) {
+          throw new Error('No expenses found in audio.')
         }
+
         state.value = 'confirm'
       }
     } catch (err) {
@@ -131,31 +136,33 @@ export const useVoiceStore = defineStore('voice', () => {
     try {
       state.value = 'processing'
       
-      // We still use Groq/Llama for the text -> JSON parsing because it's lightweight 
-      // and highly accurate for local terminology, while keeping raw audio private.
       const result = await parseExpense(
         text,
-        userStore.profile.groqApiKey, // Use user key if available, service will handle proxy if not
+        userStore.profile.groqApiKey,
         categoriesStore.categoryNames
       )
 
-      parsedExpense.value = {
-        ...result,
-        amount: Math.abs(result.amount || 0),
-        currency: result.currency || 'GHS',
-        type: result.type === 'income' ? 'income' : 'expense',
-        category: result.category || 'Other',
-        merchant: result.merchant || 'Unknown',
-        note: result.note || text,
-        date: result.date || new Date().toISOString().split('T')[0]
+      parsedExpenses.value = (result.results || []).map((res: any) => ({
+        ...res,
+        amount: Math.abs(res.amount || 0),
+        currency: res.currency || 'GHS',
+        type: res.type === 'income' ? 'income' : 'expense',
+        category: res.category || 'Other',
+        merchant: res.merchant || 'Unknown',
+        note: res.note || text,
+        date: res.date || new Date().toISOString().split('T')[0]
+      }))
+
+      if (parsedExpenses.value.length === 0) {
+        throw new Error('No expenses found in audio.')
       }
 
       state.value = 'confirm'
     } catch (err) {
       state.value = 'error'
       errorMessage.value = 'Failed to parse expense details. You can edit them manually.'
-      // Fallback: show the confirm screen with whatever we have
-      parsedExpense.value = {
+      // Fallback: show the confirm screen with one empty expense
+      parsedExpenses.value = [{
         amount: 0,
         currency: 'GHS',
         type: 'expense',
@@ -163,38 +170,47 @@ export const useVoiceStore = defineStore('voice', () => {
         merchant: 'Unknown',
         note: text,
         date: new Date().toISOString().split('T')[0]
-      }
+      }]
       state.value = 'confirm'
     }
   }
 
   async function confirmExpense() {
-    if (!parsedExpense.value) return
+    if (parsedExpenses.value.length === 0) return
 
     const expensesStore = useExpensesStore()
-    await expensesStore.addExpense({
-      amount: parsedExpense.value.amount,
-      currency: parsedExpense.value.currency,
-      type: parsedExpense.value.type,
-      category: parsedExpense.value.category,
-      merchant: parsedExpense.value.merchant,
-      note: parsedExpense.value.note,
-      date: parsedExpense.value.date
-    })
+    for (const exp of parsedExpenses.value) {
+      await expensesStore.addExpense({
+        amount: exp.amount,
+        currency: exp.currency,
+        type: exp.type,
+        category: exp.category,
+        merchant: exp.merchant,
+        note: exp.note,
+        date: exp.date
+      })
+    }
 
     reset()
   }
 
-  function updateParsed(updates: Partial<ParsedExpense>) {
-    if (parsedExpense.value) {
-      parsedExpense.value = { ...parsedExpense.value, ...updates }
+  function updateParsed(index: number, updates: Partial<ParsedExpense>) {
+    if (parsedExpenses.value[index]) {
+      parsedExpenses.value[index] = { ...parsedExpenses.value[index], ...updates }
+    }
+  }
+
+  function removeParsed(index: number) {
+    parsedExpenses.value.splice(index, 1)
+    if (parsedExpenses.value.length === 0) {
+      reset()
     }
   }
 
   function reset() {
     state.value = 'idle'
     transcript.value = ''
-    parsedExpense.value = null
+    parsedExpenses.value = []
     errorMessage.value = ''
     downloadProgress.value = 0
     if (recorder.isRecording.value) {
@@ -221,12 +237,15 @@ export const useVoiceStore = defineStore('voice', () => {
 
     for (const note of pendingNotes) {
       try {
-        let transcriptText = ''
-        let parsedResult: ParsedExpense | null = null
+        let results: any[] = []
 
         if (userStore.profile.groqApiKey) {
-          transcriptText = await transcribeAudio(note.audio, userStore.profile.groqApiKey)
-          parsedResult = await parseExpense(transcriptText, userStore.profile.groqApiKey, categoriesStore.categoryNames)
+          const transcriptText = await transcribeAudio(note.audio, userStore.profile.groqApiKey)
+          const parsedResult = await parseExpense(transcriptText, userStore.profile.groqApiKey, categoriesStore.categoryNames)
+          results = (parsedResult.results || []).map((res: any) => ({
+            ...res,
+            note: res.note || transcriptText
+          }))
         } else {
           const base64Audio = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
@@ -240,33 +259,26 @@ export const useVoiceStore = defineStore('voice', () => {
             categories: categoriesStore.categoryNames
           })
           
-          transcriptText = data.transcript
-          parsedResult = {
-            ...data.result,
-            amount: Math.abs(data.result.amount || 0),
-            currency: data.result.currency || 'GHS',
-            type: data.result.type === 'income' ? 'income' : 'expense',
-            category: data.result.category || 'Other',
-            merchant: data.result.merchant || 'Unknown',
-            note: data.result.note || data.transcript,
-            date: data.result.date || note.createdAt.split('T')[0]
-          }
+          results = (data.result.results || []).map((res: any) => ({
+            ...res,
+            note: res.note || data.transcript
+          }))
         }
 
-        if (parsedResult) {
+        for (const res of results) {
           await expensesStore.addExpense({
-            amount: parsedResult.amount,
-            currency: parsedResult.currency,
-            type: parsedResult.type,
-            category: parsedResult.category,
-            merchant: parsedResult.merchant,
-            note: parsedResult.note,
-            date: parsedResult.date
+            amount: Math.abs(res.amount || 0),
+            currency: res.currency || 'GHS',
+            type: res.type === 'income' ? 'income' : 'expense',
+            category: res.category || 'Other',
+            merchant: res.merchant || 'Unknown',
+            note: res.note,
+            date: res.date || note.createdAt.split('T')[0]
           })
-          
-          if (note.id) {
-            await db.pendingVoiceNotes.delete(note.id)
-          }
+        }
+        
+        if (note.id) {
+          await db.pendingVoiceNotes.delete(note.id)
         }
       } catch (err) {
         console.error('Failed to sync offline voice note', err)
@@ -279,7 +291,7 @@ export const useVoiceStore = defineStore('voice', () => {
   return {
     state,
     transcript,
-    parsedExpense,
+    parsedExpenses,
     errorMessage,
     downloadProgress,
     pendingCount,
@@ -291,6 +303,7 @@ export const useVoiceStore = defineStore('voice', () => {
     stopAndProcess,
     confirmExpense,
     updateParsed,
+    removeParsed,
     reset,
     cancel,
     updatePendingCount,

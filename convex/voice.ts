@@ -41,7 +41,7 @@ export const transcribeAndParse = action({
 
       // 3. Parse with Llama
       const today = new Date().toISOString().split("T")[0];
-      const systemPrompt = `You are a Ghanaian expense parser. The user may mention multiple purchases. Extract ONLY the FIRST expense mentioned from: "${transcript}"
+      const systemPrompt = `You are a Ghanaian expense parser. Extract structured data from: "${transcript}"
       
       LOCAL CONTEXT:
       - Primary currency: GHS (Ghana Cedis).
@@ -52,13 +52,13 @@ export const transcribeAndParse = action({
       - Today is: ${today}
 
       RULES:
-      - ALWAYS extract a single, numerical amount. Never return 0 unless explicitly stated.
-      - If multiple expenses are mentioned, extract ONLY the FIRST one.
+      - Extract ALL expenses or income mentioned. If multiple items are mentioned, return an array of objects.
+      - ALWAYS extract a numerical amount for each item.
       - Pick the best matching category from: ${args.categories.join(", ")}
       - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Uncle Ato").
-      - You MUST return valid JSON with a numeric amount field.
+      - You MUST return a JSON object with a "results" key containing an array of objects.
       
-      Return ONLY valid JSON (no markdown, no explanation): {"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}`
+      Return ONLY valid JSON (no markdown, no explanation): {"results": [{"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}]}`
 
       const parseRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",

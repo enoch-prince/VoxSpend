@@ -31,80 +31,107 @@
         </div>
 
         <!-- Confirm State -->
-        <div v-else-if="voiceStore.state === 'confirm' && voiceStore.parsedExpense" class="voice-modal__confirm">
+        <div v-else-if="voiceStore.state === 'confirm' && voiceStore.parsedExpenses?.length > 0" class="voice-modal__confirm">
           <div class="voice-modal__transcript">
             <span class="material-symbols-rounded text-primary icon-sm">format_quote</span>
             <p class="text-sm text-secondary">"{{ voiceStore.transcript }}"</p>
           </div>
 
-          <div class="voice-modal__parsed">
-            <!-- Amount -->
-            <div class="voice-modal__field">
-              <label class="text-xs text-tertiary font-medium">Amount</label>
-              <div class="flex items-center gap-sm">
-                <span class="text-2xl font-extrabold" :class="voiceStore.parsedExpense.type === 'income' ? 'text-success' : ''">
-                  {{ voiceStore.parsedExpense.type === 'income' ? '+' : '-' }}
-                  GH₵ {{ voiceStore.parsedExpense.amount.toFixed(2) }}
-                </span>
-              </div>
-            </div>
-
-            <!-- Details grid -->
-            <div class="voice-modal__details">
-              <div class="voice-modal__detail-item">
-                <span class="material-symbols-rounded icon-sm text-secondary">category</span>
-                <select
-                  :value="voiceStore.parsedExpense.category"
-                  @change="(e) => voiceStore.updateParsed({ category: (e.target as HTMLSelectElement).value })"
-                  class="neo-input"
+          <div class="voice-modal__expense-list">
+            <div 
+              v-for="(expense, index) in voiceStore.parsedExpenses" 
+              :key="index" 
+              class="voice-modal__expense-card neo-card"
+            >
+              <div class="flex justify-between items-start mb-sm">
+                <label class="text-xs text-tertiary font-medium">Expense #{{ index + 1 }}</label>
+                <button 
+                  class="text-danger p-xs" 
+                  @click="voiceStore.removeParsed(index)"
+                  title="Remove this expense"
                 >
-                  <option v-for="cat in categoriesStore.categoryNames" :key="cat" :value="cat">
-                    {{ cat }}
-                  </option>
-                </select>
+                  <span class="material-symbols-rounded icon-sm">delete</span>
+                </button>
               </div>
 
-              <div class="voice-modal__detail-item">
-                <span class="material-symbols-rounded icon-sm text-secondary">store</span>
-                <input
-                  :value="voiceStore.parsedExpense.merchant"
-                  @input="(e) => voiceStore.updateParsed({ merchant: (e.target as HTMLInputElement).value })"
-                  class="neo-input"
-                  placeholder="Merchant"
-                />
-              </div>
+              <div class="voice-modal__parsed">
+                <!-- Amount -->
+                <div class="voice-modal__field">
+                  <div class="flex items-center gap-sm">
+                    <span class="text-xl font-extrabold" :class="expense.type === 'income' ? 'text-success' : ''">
+                      {{ expense.type === 'income' ? '+' : '-' }}
+                      GH₵ {{ expense.amount.toFixed(2) }}
+                    </span>
+                  </div>
+                </div>
 
-              <div class="voice-modal__detail-item">
-                <span class="material-symbols-rounded icon-sm text-secondary">calendar_today</span>
-                <input
-                  type="date"
-                  :value="voiceStore.parsedExpense.date"
-                  @input="(e) => voiceStore.updateParsed({ date: (e.target as HTMLInputElement).value })"
-                  class="neo-input"
-                />
-              </div>
+                <!-- Details grid -->
+                <div class="voice-modal__details">
+                  <div class="voice-modal__detail-item">
+                    <span class="material-symbols-rounded icon-sm text-secondary">category</span>
+                    <select
+                      :value="expense.category"
+                      @change="(e) => voiceStore.updateParsed(index, { category: (e.target as HTMLSelectElement).value })"
+                      class="neo-input"
+                    >
+                      <option v-for="cat in categoriesStore.categoryNames" :key="cat" :value="cat">
+                        {{ cat }}
+                      </option>
+                    </select>
+                  </div>
 
-              <div class="voice-modal__detail-item">
-                <span class="material-symbols-rounded icon-sm text-secondary">
-                  {{ voiceStore.parsedExpense.type === 'income' ? 'arrow_downward' : 'arrow_upward' }}
-                </span>
-                <select
-                  :value="voiceStore.parsedExpense.type"
-                  @change="(e) => voiceStore.updateParsed({ type: (e.target as HTMLSelectElement).value as 'expense' | 'income' })"
-                  class="neo-input"
-                >
-                  <option value="expense">Expense</option>
-                  <option value="income">Income</option>
-                </select>
+                  <div class="voice-modal__detail-item">
+                    <span class="material-symbols-rounded icon-sm text-secondary">store</span>
+                    <input
+                      :value="expense.merchant"
+                      @input="(e) => voiceStore.updateParsed(index, { merchant: (e.target as HTMLInputElement).value })"
+                      class="neo-input"
+                      placeholder="Merchant"
+                    />
+                  </div>
+
+                  <div class="voice-modal__detail-item">
+                    <span class="material-symbols-rounded icon-sm text-secondary">calendar_today</span>
+                    <input
+                      type="date"
+                      :value="expense.date"
+                      @input="(e) => voiceStore.updateParsed(index, { date: (e.target as HTMLInputElement).value })"
+                      class="neo-input"
+                    />
+                  </div>
+
+                  <div class="voice-modal__detail-item">
+                    <span class="material-symbols-rounded icon-sm text-secondary">
+                      {{ expense.type === 'income' ? 'arrow_downward' : 'arrow_upward' }}
+                    </span>
+                    <select
+                      :value="expense.type"
+                      @change="(e) => voiceStore.updateParsed(index, { type: (e.target as HTMLSelectElement).value as 'expense' | 'income' })"
+                      class="neo-input"
+                    >
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="voice-modal__field mt-xs">
+                  <input
+                    :value="expense.note"
+                    @input="(e) => voiceStore.updateParsed(index, { note: (e.target as HTMLInputElement).value })"
+                    class="neo-input"
+                    placeholder="Note"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
           <div class="voice-modal__actions mt-lg">
-            <button class="neo-button neo-button--ghost" @click="voiceStore.cancel">Discard</button>
+            <button class="neo-button neo-button--ghost" @click="voiceStore.cancel">Discard All</button>
             <button class="neo-button neo-button--primary" @click="voiceStore.confirmExpense">
-              <span class="material-symbols-rounded icon-sm">check</span>
-              Save
+              <span class="material-symbols-rounded icon-sm">check_circle</span>
+              Save {{ voiceStore.parsedExpenses?.length || 0 }} Expenses
             </button>
           </div>
         </div>
@@ -260,6 +287,21 @@ const ringStyle = computed(() => {
       font-style: italic;
       line-height: 1.4;
     }
+  }
+
+  &__expense-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-md;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 4px; // For box shadow visibility
+  }
+
+  &__expense-card {
+    padding: $space-md;
+    border: 1px solid var(--border);
+    background: var(--surface);
   }
 
   &__parsed {
