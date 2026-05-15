@@ -14,7 +14,7 @@
         <p class="text-sm text-secondary">GH₵ · Ghana Cedis</p>
       </div>
 
-      <!-- Theme Toggle -->
+      <!-- Theme & Notifications -->
       <div class="neo-card-sm mb-md">
         <div class="profile-view__row" @click="themeStore.toggleMode">
           <span class="material-symbols-rounded text-secondary">
@@ -22,6 +22,14 @@
           </span>
           <span class="text-sm font-semibold flex-1">Dark Mode</span>
           <div class="profile-view__toggle" :class="{ 'profile-view__toggle--on': themeStore.mode === 'dark' }">
+            <div class="profile-view__toggle-knob"></div>
+          </div>
+        </div>
+        <div class="profile-view__divider"></div>
+        <div class="profile-view__row" @click="toggleNotifications" :style="{ opacity: notificationToggling ? 0.7 : 1 }">
+          <span class="material-symbols-rounded text-secondary">notifications_active</span>
+          <span class="text-sm font-semibold flex-1">Daily Reminders</span>
+          <div class="profile-view__toggle" :class="{ 'profile-view__toggle--on': optimisticNotificationsEnabled }">
             <div class="profile-view__toggle-knob"></div>
           </div>
         </div>
@@ -131,6 +139,7 @@ import { useMomoStore } from '@/stores/momo'
 import { useExpensesStore } from '@/stores/expenses'
 import { useCategoriesStore } from '@/stores/categories'
 import { usePwaInstall } from '@/composables/usePwaInstall'
+import { convex, api } from '@/services/convexClient'
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
@@ -146,6 +155,8 @@ const apiKeyInput = ref(userStore.profile.groqApiKey)
 const showCategories = ref(false)
 const newCatName = ref('')
 const newCatColor = ref('#6366F1')
+const notificationToggling = ref(false)
+const optimisticNotificationsEnabled = ref(userStore.profile.notificationsEnabled ?? false)
 
 function saveApiKey() {
   userStore.setApiKey(apiKeyInput.value)
@@ -156,6 +167,66 @@ async function addCategory() {
   if (!newCatName.value.trim()) return
   await categoriesStore.addCategory(newCatName.value.trim(), 'label', newCatColor.value)
   newCatName.value = ''
+}
+
+async function toggleNotifications() {
+  if (notificationToggling.value) return
+  notificationToggling.value = true
+
+  const newState = !optimisticNotificationsEnabled.value
+  // Flip immediately for snappy UI feedback
+  optimisticNotificationsEnabled.value = newState
+
+  if (newState) {
+    const permission = await Notification.requestPermission()
+    if (permission === 'granted') {
+      try {
+        const registration = await navigator.serviceWorker.ready
+        const sub = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
+        })
+        
+        const subJson = sub.toJSON()
+        if (!subJson.endpoint || !subJson.keys) throw new Error('Invalid subscription')
+
+        await convex.mutation(api.subscriptions.saveSubscription, {
+          endpoint: subJson.endpoint,
+          keys: {
+            p256dh: subJson.keys.p256dh as string,
+            auth: subJson.keys.auth as string
+          }
+        })
+
+        userStore.updateProfile({ notificationsEnabled: true })
+      } catch (err) {
+        console.error('Failed to subscribe to push', err)
+        optimisticNotificationsEnabled.value = false // revert
+        alert('Failed to enable notifications. Ensure your device supports Web Push.')
+      }
+    } else {
+      optimisticNotificationsEnabled.value = false // revert — permission denied
+      alert('Notification permission denied.')
+    }
+  } else {
+    try {
+      const registration = await navigator.serviceWorker.ready
+      const sub = await registration.pushManager.getSubscription()
+      if (sub) {
+        await convex.mutation(api.subscriptions.removeSubscription, {
+          endpoint: sub.endpoint
+        })
+        await sub.unsubscribe()
+      }
+      userStore.updateProfile({ notificationsEnabled: false })
+    } catch (err) {
+      console.error('Failed to unsubscribe', err)
+      optimisticNotificationsEnabled.value = true // revert on error
+      userStore.updateProfile({ notificationsEnabled: false })
+    }
+  }
+
+  notificationToggling.value = false
 }
 </script>
 

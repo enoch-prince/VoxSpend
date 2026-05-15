@@ -3,13 +3,14 @@
 // ============================================
 
 import Dexie, { type Table } from 'dexie'
-import type { Expense, Category, MomoAccount, SyncQueueItem } from '@/types'
+import type { Expense, Category, MomoAccount, SyncQueueItem, PendingVoiceNote } from '@/types'
 
 export class VoxSpendDB extends Dexie {
   expenses!: Table<Expense, string>
   categories!: Table<Category, string>
   momoAccounts!: Table<MomoAccount, string>
   syncQueue!: Table<SyncQueueItem, number>
+  pendingVoiceNotes!: Table<PendingVoiceNote, number>
 
   constructor() {
     super('VoxSpendDB')
@@ -20,8 +21,13 @@ export class VoxSpendDB extends Dexie {
       momoAccounts: 'id, provider, phoneNumber',
       syncQueue: '++id, table, entityId, action, createdAt'
     })
+
+    this.version(2).stores({
+      pendingVoiceNotes: '++id, createdAt'
+    })
   }
 }
+
 
 export const db = new VoxSpendDB()
 

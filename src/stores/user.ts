@@ -36,6 +36,7 @@ export const useUserStore = defineStore('user', () => {
       currency: 'GHS',
       groqApiKey: '',
       onboardingComplete: false,
+      notificationsEnabled: false,
       createdAt: new Date().toISOString()
     }
   }

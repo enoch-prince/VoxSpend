@@ -6,3 +6,5 @@ coverage
 *.bak
 *.db
 *.zip
+
+.env.local

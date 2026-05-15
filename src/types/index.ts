@@ -40,6 +40,7 @@ export interface UserProfile {
   currency: string
   groqApiKey: string
   onboardingComplete: boolean
+  notificationsEnabled?: boolean
   createdAt: string
 }
 
@@ -62,6 +63,13 @@ export interface SyncQueueItem {
   createdAt: string
   retries: number
 }
+
+export interface PendingVoiceNote {
+  id?: number
+  audio: Blob
+  createdAt: string
+}
+
 
 export interface CategoryBreakdown {
   category: string
