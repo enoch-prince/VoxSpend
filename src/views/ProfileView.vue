@@ -26,10 +26,10 @@
           </div>
         </div>
         <div class="profile-view__divider"></div>
-        <div class="profile-view__row" @click="toggleNotifications">
+        <div class="profile-view__row" @click="toggleNotifications" :style="{ opacity: notificationToggling ? 0.7 : 1 }">
           <span class="material-symbols-rounded text-secondary">notifications_active</span>
           <span class="text-sm font-semibold flex-1">Daily Reminders</span>
-          <div class="profile-view__toggle" :class="{ 'profile-view__toggle--on': userStore.profile.notificationsEnabled }">
+          <div class="profile-view__toggle" :class="{ 'profile-view__toggle--on': optimisticNotificationsEnabled }">
             <div class="profile-view__toggle-knob"></div>
           </div>
         </div>
@@ -155,6 +155,8 @@ const apiKeyInput = ref(userStore.profile.groqApiKey)
 const showCategories = ref(false)
 const newCatName = ref('')
 const newCatColor = ref('#6366F1')
+const notificationToggling = ref(false)
+const optimisticNotificationsEnabled = ref(userStore.profile.notificationsEnabled ?? false)
 
 function saveApiKey() {
   userStore.setApiKey(apiKeyInput.value)
@@ -168,7 +170,12 @@ async function addCategory() {
 }
 
 async function toggleNotifications() {
-  const newState = !userStore.profile.notificationsEnabled
+  if (notificationToggling.value) return
+  notificationToggling.value = true
+
+  const newState = !optimisticNotificationsEnabled.value
+  // Flip immediately for snappy UI feedback
+  optimisticNotificationsEnabled.value = newState
 
   if (newState) {
     const permission = await Notification.requestPermission()
@@ -194,9 +201,11 @@ async function toggleNotifications() {
         userStore.updateProfile({ notificationsEnabled: true })
       } catch (err) {
         console.error('Failed to subscribe to push', err)
+        optimisticNotificationsEnabled.value = false // revert
         alert('Failed to enable notifications. Ensure your device supports Web Push.')
       }
     } else {
+      optimisticNotificationsEnabled.value = false // revert — permission denied
       alert('Notification permission denied.')
     }
   } else {
@@ -212,9 +221,12 @@ async function toggleNotifications() {
       userStore.updateProfile({ notificationsEnabled: false })
     } catch (err) {
       console.error('Failed to unsubscribe', err)
+      optimisticNotificationsEnabled.value = true // revert on error
       userStore.updateProfile({ notificationsEnabled: false })
     }
   }
+
+  notificationToggling.value = false
 }
 </script>
 
