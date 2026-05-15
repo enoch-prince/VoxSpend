@@ -47,7 +47,7 @@ export async function parseExpense(
   transcript: string,
   apiKey: string,
   categories: string[]
-): Promise<ParsedExpense> {
+): Promise<{ results: ParsedExpense[] }> {
   const today = new Date().toISOString().split('T')[0]
   const categoryList = categories.join(', ')
 
