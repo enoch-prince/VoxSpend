@@ -18,7 +18,7 @@
 
     <!-- Manual entry mini FAB -->
     <button
-      class="bottom-nav-mini-fab"
+      class="bottom-nav-mini-fab glass"
       @click="$emit('openManual')"
       id="manual-entry-fab"
       aria-label="Add manually"
@@ -174,7 +174,7 @@ function handleFabClick() {
   position: absolute;
   top: 0;
   left: 50%;
-  transform: translate(calc(-50% + 44px), -100%);
+  transform: translate(calc(-50% + 40px), -120%);
   z-index: 111;
   width: 36px;
   height: 36px;
