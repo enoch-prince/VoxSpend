@@ -21,13 +21,25 @@
       />
 
       <!-- Voice prompt -->
-      <div class="dashboard__voice-hint neo-card-sm flex items-center gap-md mb-lg" @click="startVoice">
+      <div class="dashboard__voice-hint neo-card-sm flex items-center gap-md mb-sm" @click="startVoice">
         <div class="dashboard__voice-icon">
           <span class="material-symbols-rounded">mic</span>
         </div>
         <div class="flex-1">
           <p class="font-semibold text-sm">Add by voice</p>
           <p class="text-xs text-tertiary">Tap to speak your expense</p>
+        </div>
+        <span class="material-symbols-rounded text-tertiary">arrow_forward_ios</span>
+      </div>
+
+      <!-- Manual entry prompt -->
+      <div class="dashboard__manual-hint neo-card-sm flex items-center gap-md mb-lg" @click="openManualInput">
+        <div class="dashboard__manual-icon">
+          <span class="material-symbols-rounded">edit_note</span>
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold text-sm">Type it instead</p>
+          <p class="text-xs text-tertiary">Manually enter expense details</p>
         </div>
         <span class="material-symbols-rounded text-tertiary">arrow_forward_ios</span>
       </div>
@@ -81,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useExpensesStore } from '@/stores/expenses'
 import { useUserStore } from '@/stores/user'
 import { useVoiceStore } from '@/stores/voice'
@@ -101,6 +113,11 @@ const greeting = computed(() => {
 
 function startVoice() {
   voiceStore.startRecording()
+}
+
+const openManualFromParent = inject<() => void>('openManualInput', () => {})
+function openManualInput() {
+  openManualFromParent()
 }
 </script>
 
@@ -129,6 +146,24 @@ function startVoice() {
     height: 40px;
     border-radius: $radius-md;
     background: linear-gradient(135deg, $primary, $primary-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    .material-symbols-rounded { font-size: 22px; }
+  }
+
+  &__manual-hint {
+    cursor: pointer;
+    transition: transform $transition-fast;
+    &:active { transform: scale(0.98); }
+  }
+
+  &__manual-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: $radius-md;
+    background: linear-gradient(135deg, $accent, $accent-light);
     display: flex;
     align-items: center;
     justify-content: center;
