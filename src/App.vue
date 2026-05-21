@@ -20,15 +20,22 @@
     </router-view>
 
     <!-- Bottom navigation -->
-    <BottomNav v-if="showNav" />
+    <BottomNav v-if="showNav" @openManual="showManualInput = true" />
 
     <!-- Voice input modal -->
     <VoiceInputModal />
+
+    <!-- Manual input modal -->
+    <ManualInputModal
+      :isOpen="showManualInput"
+      @close="showManualInput = false"
+      @saved="showManualInput = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
 import { useOnlineStatus } from '@/composables/useOnlineStatus'
@@ -39,6 +46,7 @@ import { useMomoStore } from '@/stores/momo'
 import { useVoiceStore } from '@/stores/voice'
 import BottomNav from '@/components/BottomNav.vue'
 import VoiceInputModal from '@/components/VoiceInputModal.vue'
+import ManualInputModal from '@/components/ManualInputModal.vue'
 
 const route = useRoute()
 const { isOnline } = useOnlineStatus()
@@ -49,6 +57,8 @@ const categoriesStore = useCategoriesStore()
 const expensesStore = useExpensesStore()
 const momoStore = useMomoStore()
 const voiceStore = useVoiceStore()
+const showManualInput = ref(false)
+provide('openManualInput', () => { showManualInput.value = true })
 
 // Watch online status to trigger sync
 watch(isOnline, (online) => {

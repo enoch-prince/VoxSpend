@@ -16,6 +16,17 @@
     </div>
     </nav>
 
+    <!-- Manual entry mini FAB -->
+    <button
+      class="bottom-nav-mini-fab"
+      @click="$emit('openManual')"
+      id="manual-entry-fab"
+      aria-label="Add manually"
+      title="Type expense"
+    >
+      <span class="material-symbols-rounded">edit</span>
+    </button>
+
     <!-- Center FAB (Voice) -->
     <button
       class="bottom-nav-fab neo-fab"
@@ -37,6 +48,10 @@ import { useVoiceStore } from '@/stores/voice'
 
 const route = useRoute()
 const voiceStore = useVoiceStore()
+
+defineEmits<{
+  openManual: []
+}>()
 
 const navItems = [
   { route: '/', icon: 'account_balance_wallet', label: 'Home' },
@@ -152,6 +167,36 @@ function handleFabClick() {
   
   .material-symbols-rounded {
     font-size: 32px !important;
+  }
+}
+
+.bottom-nav-mini-fab {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(calc(-50% + 44px), -100%);
+  z-index: 111;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface);
+  color: $primary;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all $transition-fast;
+  outline: none;
+
+  .material-symbols-rounded {
+    font-size: 18px;
+  }
+
+  &:active {
+    transform: translate(calc(-50% + 44px), -100%) scale(0.9);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 }
 
