@@ -8,6 +8,34 @@ export const config = {
   },
 }
 
+function buildMultipartFormData(
+  fields: Record<string, string>,
+  file: { name: string; filename: string; contentType: string; data: Buffer }
+) {
+  const boundary = `----VoxSpendBoundary${Math.random().toString(16).slice(2)}`
+  const CRLF = '\r\n'
+  const parts: Buffer[] = []
+
+  for (const [name, value] of Object.entries(fields)) {
+    parts.push(
+      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`)
+    )
+  }
+
+  parts.push(
+    Buffer.from(
+      `--${boundary}${CRLF}Content-Disposition: form-data; name="${file.name}"; filename="${file.filename}"${CRLF}Content-Type: ${file.contentType}${CRLF}${CRLF}`
+    )
+  )
+  parts.push(file.data)
+  parts.push(Buffer.from(`${CRLF}--${boundary}--${CRLF}`))
+
+  return {
+    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+    body: Buffer.concat(parts),
+  }
+}
+
 export default async function handler(
   request: VercelRequest,
   response: VercelResponse
@@ -24,23 +52,30 @@ export default async function handler(
   }
 
   try {
-    // 1. Convert Base64 back to Buffer/Blob for Groq
+    // 1. Convert Base64 back to Buffer for Groq
     const buffer = Buffer.from(audio, 'base64')
-    const formData = new FormData()
-    const file = new Blob([buffer], { type: 'audio/webm' })
-    formData.append('file', file, 'recording.webm')
-    // formData.append('model', 'whisper-large-v3-turbo')
-    formData.append('model', 'whisper-large-v3')
-    formData.append('response_format', 'text')
-    // GEOGRAPHIC TUNING: Conversational prompt helps Whisper understand the accent, flow, and local vocabulary.
-    // formData.append('prompt', 'Chale, I just spent 50 Ghana Cedis on Waakye and Kelewele. I paid my Trotro fare with 10 GHS. Abeg, record this MoMo transfer of 200 CDs to Ama. The price at Melcom was high kraa.')
-    formData.append('prompt', 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.')
-    
+    const { headers: formHeaders, body: formBody } = buildMultipartFormData(
+      {
+        model: 'whisper-large-v3',
+        response_format: 'text',
+        prompt: 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.'
+      },
+      {
+        name: 'file',
+        filename: 'recording.webm',
+        contentType: 'audio/webm',
+        data: buffer,
+      }
+    )
+
     // 2. Transcribe
     const transcriptionRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` },
-      body: formData
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        ...formHeaders,
+      },
+      body: formBody,
     })
 
     if (!transcriptionRes.ok) {

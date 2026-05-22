@@ -2,6 +2,34 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 
+function buildMultipartFormData(
+  fields: Record<string, string>,
+  file: { name: string; filename: string; contentType: string; data: Buffer }
+) {
+  const boundary = `----VoxSpendBoundary${Math.random().toString(16).slice(2)}`
+  const CRLF = '\r\n'
+  const parts: Buffer[] = []
+
+  for (const [name, value] of Object.entries(fields)) {
+    parts.push(
+      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`)
+    )
+  }
+
+  parts.push(
+    Buffer.from(
+      `--${boundary}${CRLF}Content-Disposition: form-data; name="${file.name}"; filename="${file.filename}"${CRLF}Content-Type: ${file.contentType}${CRLF}${CRLF}`
+    )
+  )
+  parts.push(file.data)
+  parts.push(Buffer.from(`${CRLF}--${boundary}--${CRLF}`))
+
+  return {
+    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+    body: Buffer.concat(parts),
+  }
+}
+
 export const transcribeAndParse = action({
   args: {
     audioBase64: v.string(),
@@ -17,20 +45,30 @@ export const transcribeAndParse = action({
     }
 
     try {
-      // 1. Convert Base64 to Buffer/Blob
+      // 1. Convert Base64 to Buffer for Groq
       const buffer = Buffer.from(args.audioBase64, "base64");
-      const formData = new FormData();
-      const file = new Blob([buffer], { type: "audio/webm" });
-      formData.append("file", file, "recording.webm");
-      formData.append("model", "whisper-large-v3");
-      formData.append("response_format", "text");
-      formData.append("prompt", "GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.");
+      const { headers: transcriptionHeaders, body: transcriptionBody } = buildMultipartFormData(
+        {
+          model: "whisper-large-v3",
+          response_format: "text",
+          prompt: "GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo."
+        },
+        {
+          name: "file",
+          filename: "recording.webm",
+          contentType: "audio/webm",
+          data: buffer,
+        }
+      );
       
       // 2. Transcribe
       const transcriptionRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
-        body: formData as any // standard FormData is fine, TS type might complain
+        headers: {
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
+          ...transcriptionHeaders,
+        },
+        body: transcriptionBody,
       });
 
       if (!transcriptionRes.ok) {
