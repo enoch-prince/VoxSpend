@@ -30,17 +30,6 @@ registerRoute(
   })
 )
 
-// Cache Groq API responses (Chat Completions only, not audio)
-registerRoute(
-  ({ url }) => url.href.includes('api.groq.com/openai/v1/chat/completions'),
-  new NetworkFirst({
-    cacheName: 'groq-api-cache',
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 })
-    ]
-  })
-)
-
 // Default caching for other assets
 registerRoute(
   ({ request }) => request.destination === 'image',
