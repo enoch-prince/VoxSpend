@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0",
     "chart.js": "^4.4.7",
     "convex": "^1.38.0",
     "dexie": "^4.0.11",
