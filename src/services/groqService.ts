@@ -3,6 +3,7 @@
 // ============================================
 
 import type { ParsedExpense } from '@/types'
+import { buildTranscriptionPrompt, buildGroqSystemPrompt, parseGroqResponse } from './groqHelpers'
 
 const GROQ_API_BASE = 'https://api.groq.com/openai/v1'
 
@@ -16,9 +17,7 @@ export async function transcribeAudio(blob: Blob, apiKey: string): Promise<strin
   formData.append('model', 'whisper-large-v3')
   formData.append('language', 'en')
   formData.append('response_format', 'text')
-  // GEOGRAPHIC TUNING: Conversational prompt helps Whisper understand the accent, flow, and local vocabulary.
-  // formData.append('prompt', 'Chale, I just spent 50 Ghana Cedis on Waakye and Kelewele. I paid my Trotro fare with 10 GHS. Abeg, record this MoMo transfer of 200 CDs to Ama. The price at Melcom was high kraa.')
-  formData.append('prompt', 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.')
+  formData.append('prompt', buildTranscriptionPrompt())
 
   if (!apiKey || apiKey.trim() === '') {
     throw new Error('Groq API Key is missing. Please add it in Settings.')
@@ -51,24 +50,7 @@ export async function parseExpense(
   const today = new Date().toISOString().split('T')[0]
   const categoryList = categories.join(', ')
 
-  const systemPrompt = `You are a Ghanaian expense parser. Extract structured data from: "${transcript}"
-  
-  LOCAL CONTEXT:
-  - Primary currency: GHS (Ghana Cedis).
-  - People often say "CDs" which means "Cedis". If you see "100 CDs", the amount is 100.
-  - If the user says "cedis", "cedi", "CDs", "pesewas", or just a number, it is GHS.
-  - "MoMo" refers to Mobile Money.
-  - Today is: ${today}
-
-  RULES:
-  - Extract ALL expenses or income mentioned. If multiple items are mentioned, return an array of objects.
-  - ALWAYS extract a numerical amount for each item.
-  - Pick the best matching category from: ${categoryList}
-  - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Uncle Ato").
-  - note should capture any extra detail from the speech.
-  - You MUST return a JSON object with a "results" key containing an array of objects.
-  
-  Return ONLY valid JSON (no markdown, no explanation): {"results": [{"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}]}`
+  const systemPrompt = buildGroqSystemPrompt(transcript, categories)
 
   if (!apiKey || apiKey.trim() === '') {
     throw new Error('Groq API Key is missing. Please add it in Settings.')
@@ -98,22 +80,11 @@ export async function parseExpense(
   }
 
   const data = await response.json()
-  const content = data.choices?.[0]?.message?.content
-
-  if (!content) {
-    throw new Error('No content in LLM response')
-  }
-
-  const parsed = JSON.parse(content)
-  const results = Array.isArray(parsed.results) ? parsed.results : []
+  const parsed = parseGroqResponse(data)
 
   return {
-    results: results.map((item: any) => ({
-      amount: Math.abs(item.amount || 0),
-      currency: item.currency || 'GHS',
-      type: item.type === 'income' ? 'income' : 'expense',
-      category: item.category || 'Other',
-      merchant: item.merchant || 'Unknown',
+    results: parsed.results.map((item) => ({
+      ...item,
       note: item.note || transcript,
       date: item.date || today
     }))
