@@ -10,28 +10,73 @@ import { encrypt, decrypt } from '@/utils/encryption';
 const STORAGE_KEY = 'voxspend-user';
 
 export const useUserStore = defineStore('user', () => {
-  const profile = ref<UserProfile>(loadProfile());
+  const profile = ref<UserProfile>(loadProfileSync());
+  // True once the async key decryption completes — guards voice features from running before ready.
+  const apiKeyReady = ref(false);
+  // Tracks whether an encrypted key exists in storage, so hasApiKey is accurate before init completes.
+  const _hasStoredKey = ref(hasEncryptedKeyInStorage());
 
-  // Migration: If we loaded a plain-text key, encrypt it immediately
-  if (profile.value.groqApiKey && profile.value.groqApiKey.startsWith('gsk_')) {
-    saveProfile();
-  }
+  initApiKey();
 
-  function loadProfile(): UserProfile {
+  function loadProfileSync(): UserProfile {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const data = JSON.parse(stored) as UserProfile;
-        // Decrypt the API key if it exists
-        if (data.groqApiKey) {
-          data.groqApiKey = decrypt(data.groqApiKey);
-        }
+        // Leave groqApiKey empty — initApiKey will decrypt and restore it asynchronously.
+        data.groqApiKey = '';
         return data;
       }
     } catch {
       /* ignore */
     }
+    return defaultProfile();
+  }
 
+  function hasEncryptedKeyInStorage(): boolean {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const data = JSON.parse(stored) as UserProfile;
+        return !!data.groqApiKey;
+      }
+    } catch {
+      /* ignore */
+    }
+    return false;
+  }
+
+  async function initApiKey() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const data = JSON.parse(stored) as UserProfile;
+        if (data.groqApiKey) {
+          const plaintext = await decrypt(data.groqApiKey);
+          profile.value.groqApiKey = plaintext;
+          // Silently re-encrypt if this was an old XOR-encrypted value (no v2: prefix).
+          if (!data.groqApiKey.startsWith('v2:') && plaintext) {
+            void saveProfile();
+          }
+        }
+      }
+    } catch {
+      /* ignore — key stays empty, user can re-enter in Settings */
+    } finally {
+      _hasStoredKey.value = !!profile.value.groqApiKey;
+      apiKeyReady.value = true;
+    }
+  }
+
+  async function saveProfile() {
+    const dataToStore = { ...profile.value };
+    if (dataToStore.groqApiKey) {
+      dataToStore.groqApiKey = await encrypt(dataToStore.groqApiKey);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToStore));
+  }
+
+  function defaultProfile(): UserProfile {
     return {
       name: '',
       avatarInitials: '',
@@ -43,17 +88,8 @@ export const useUserStore = defineStore('user', () => {
     };
   }
 
-  function saveProfile() {
-    const dataToStore = { ...profile.value };
-    // Encrypt the API key before storing
-    if (dataToStore.groqApiKey) {
-      dataToStore.groqApiKey = encrypt(dataToStore.groqApiKey);
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToStore));
-  }
-
   const isSetup = computed(() => profile.value.onboardingComplete);
-  const hasApiKey = computed(() => !!profile.value.groqApiKey);
+  const hasApiKey = computed(() => !!profile.value.groqApiKey || _hasStoredKey.value);
   const initials = computed(() => {
     if (!profile.value.name) return '?';
     return profile.value.name
@@ -74,7 +110,8 @@ export const useUserStore = defineStore('user', () => {
         .toUpperCase()
         .substring(0, 2);
     }
-    saveProfile();
+    _hasStoredKey.value = !!profile.value.groqApiKey;
+    void saveProfile();
   }
 
   function completeOnboarding(name: string, apiKey: string) {
@@ -91,6 +128,7 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     profile,
+    apiKeyReady,
     isSetup,
     hasApiKey,
     initials,
