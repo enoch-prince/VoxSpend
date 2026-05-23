@@ -21,7 +21,10 @@
       />
 
       <!-- Voice prompt -->
-      <div class="dashboard__voice-hint neo-card-sm flex items-center gap-md mb-sm" @click="startVoice">
+      <div
+        class="dashboard__voice-hint neo-card-sm flex items-center gap-md mb-sm"
+        @click="startVoice"
+      >
         <div class="dashboard__voice-icon">
           <span class="material-symbols-rounded">mic</span>
         </div>
@@ -33,7 +36,10 @@
       </div>
 
       <!-- Manual entry prompt -->
-      <div class="dashboard__manual-hint neo-card-sm flex items-center gap-md mb-lg" @click="openManualInput">
+      <div
+        class="dashboard__manual-hint neo-card-sm flex items-center gap-md mb-lg"
+        @click="openManualInput"
+      >
         <div class="dashboard__manual-icon">
           <span class="material-symbols-rounded">edit_note</span>
         </div>
@@ -48,12 +54,19 @@
       <section class="mb-lg">
         <div class="flex justify-between items-center mb-md">
           <h2 class="text-md font-bold">Recent</h2>
-          <router-link to="/history" class="text-sm text-primary font-semibold" style="text-decoration:none;">
+          <router-link
+            to="/history"
+            class="text-sm text-primary font-semibold"
+            style="text-decoration: none"
+          >
             See all
           </router-link>
         </div>
 
-        <div v-if="expensesStore.recentExpenses.length === 0" class="dashboard__empty neo-card-flat">
+        <div
+          v-if="expensesStore.recentExpenses.length === 0"
+          class="dashboard__empty neo-card-flat"
+        >
           <span class="material-symbols-rounded icon-lg text-tertiary">receipt_long</span>
           <p class="text-sm text-secondary mt-sm">No expenses yet</p>
           <p class="text-xs text-tertiary">Tap the mic to add your first expense</p>
@@ -87,104 +100,112 @@
       </section>
 
       <!-- Spacer for bottom nav -->
-      <div style="height: 20px;"></div>
+      <div style="height: 20px"></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, inject } from 'vue'
-import { useExpensesStore } from '@/stores/expenses'
-import { useUserStore } from '@/stores/user'
-import { useVoiceStore } from '@/stores/voice'
-import BalanceCard from '@/components/BalanceCard.vue'
-import ExpenseItem from '@/components/ExpenseItem.vue'
+  import { computed, inject } from 'vue';
+  import { useExpensesStore } from '@/stores/expenses';
+  import { useUserStore } from '@/stores/user';
+  import { useVoiceStore } from '@/stores/voice';
+  import BalanceCard from '@/components/BalanceCard.vue';
+  import ExpenseItem from '@/components/ExpenseItem.vue';
 
-const expensesStore = useExpensesStore()
-const userStore = useUserStore()
-const voiceStore = useVoiceStore()
+  const expensesStore = useExpensesStore();
+  const userStore = useUserStore();
+  const voiceStore = useVoiceStore();
 
-const greeting = computed(() => {
-  const h = new Date().getHours()
-  if (h < 12) return 'morning'
-  if (h < 17) return 'afternoon'
-  return 'evening'
-})
+  const greeting = computed(() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    return 'evening';
+  });
 
-function startVoice() {
-  voiceStore.startRecording()
-}
+  function startVoice() {
+    voiceStore.startRecording();
+  }
 
-const openManualFromParent = inject<() => void>('openManualInput', () => {})
-function openManualInput() {
-  openManualFromParent()
-}
+  const openManualFromParent = inject<() => void>('openManualInput', () => {});
+  function openManualInput() {
+    openManualFromParent();
+  }
 </script>
 
 <style lang="scss">
-.dashboard {
-  &__avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, $primary, $accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    cursor: pointer;
-  }
-
-  &__voice-hint {
-    cursor: pointer;
-    transition: transform $transition-fast;
-    &:active { transform: scale(0.98); }
-  }
-
-  &__voice-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: $radius-md;
-    background: linear-gradient(135deg, $primary, $primary-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    .material-symbols-rounded { font-size: 22px; }
-  }
-
-  &__manual-hint {
-    cursor: pointer;
-    transition: transform $transition-fast;
-    &:active { transform: scale(0.98); }
-  }
-
-  &__manual-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: $radius-md;
-    background: linear-gradient(135deg, $accent, $accent-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    .material-symbols-rounded { font-size: 22px; }
-  }
-
-  &__empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: $space-xl;
-    text-align: center;
-  }
-
-  &__cat-row {
-    .cat-dot {
-      width: 10px;
-      height: 10px;
+  .dashboard {
+    &__avatar {
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
+      background: linear-gradient(135deg, $primary, $accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    &__voice-hint {
+      cursor: pointer;
+      transition: transform $transition-fast;
+      &:active {
+        transform: scale(0.98);
+      }
+    }
+
+    &__voice-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: $radius-md;
+      background: linear-gradient(135deg, $primary, $primary-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      .material-symbols-rounded {
+        font-size: 22px;
+      }
+    }
+
+    &__manual-hint {
+      cursor: pointer;
+      transition: transform $transition-fast;
+      &:active {
+        transform: scale(0.98);
+      }
+    }
+
+    &__manual-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: $radius-md;
+      background: linear-gradient(135deg, $accent, $accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      .material-symbols-rounded {
+        font-size: 22px;
+      }
+    }
+
+    &__empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: $space-xl;
+      text-align: center;
+    }
+
+    &__cat-row {
+      .cat-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
     }
   }
-}
 </style>

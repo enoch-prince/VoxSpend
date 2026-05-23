@@ -8,14 +8,14 @@
 
       <!-- Name -->
       <div class="setup__field mb-lg">
-        <label class="text-sm font-semibold mb-xs" style="display:block;">Your Name</label>
+        <label class="text-sm font-semibold mb-xs" style="display: block">Your Name</label>
         <input v-model="name" class="neo-input" placeholder="e.g. Kwame Asante" id="setup-name" />
       </div>
 
       <!-- Submit -->
       <button
         class="neo-button neo-button--primary w-full"
-        style="padding:16px;font-size:16px;"
+        style="padding: 16px; font-size: 16px"
         @click="handleSubmit"
         :disabled="!canSubmit"
         id="setup-submit"
@@ -27,54 +27,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+  import { ref, computed } from 'vue';
+  import { useRouter } from 'vue-router';
+  import { useUserStore } from '@/stores/user';
 
-const router = useRouter()
-const userStore = useUserStore()
+  const router = useRouter();
+  const userStore = useUserStore();
 
-const name = ref('')
-const validationError = ref('')
+  const name = ref('');
+  const validationError = ref('');
 
-const canSubmit = computed(() => name.value.trim().length >= 2)
+  const canSubmit = computed(() => name.value.trim().length >= 2);
 
-function handleSubmit() {
-  validationError.value = ''
+  function handleSubmit() {
+    validationError.value = '';
 
-  if (name.value.trim().length < 2) {
-    validationError.value = 'Please enter your name'
-    return
+    if (name.value.trim().length < 2) {
+      validationError.value = 'Please enter your name';
+      return;
+    }
+
+    userStore.completeOnboarding(name.value.trim(), '');
+    router.replace('/');
   }
-
-  userStore.completeOnboarding(name.value.trim(), '')
-  router.replace('/')
-}
 </script>
 
 <style lang="scss">
-.setup {
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
-  align-content: center;
-  flex-wrap: wrap;
-  justify-content: center;
-
-  &__content {
-    max-width: 360px;
-    margin: 0 auto;
-  }
-
-  &__error {
+  .setup {
+    background: var(--bg);
     display: flex;
-    align-items: center;
-    gap: $space-sm;
-    padding: $space-md;
-    background: rgba($danger, 0.1);
-    border-radius: $radius-md;
-    color: $danger;
-    font-size: $font-size-sm;
+    flex-direction: column;
+    align-content: center;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    &__content {
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    &__error {
+      display: flex;
+      align-items: center;
+      gap: $space-sm;
+      padding: $space-md;
+      background: rgba($danger, 0.1);
+      border-radius: $radius-md;
+      color: $danger;
+      font-size: $font-size-sm;
+    }
   }
-}
 </style>

@@ -2,9 +2,9 @@
 // Dark Theme Overrides
 // ============================================
 
-@use "variables" as *;
+@use 'variables' as *;
 
-html[data-theme="dark"] {
+html[data-theme='dark'] {
   --bg: #{$dark-bg};
   --surface: #{$dark-surface};
   --surface-alt: #{$dark-surface-alt};

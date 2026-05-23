@@ -25,7 +25,8 @@
 ## 🚀 Tech Stack
 
 - **Frontend**: [Vue 3](https://vuejs.org/) (Composition API), [Pinia](https://pinia.vuejs.org/) (State Management), [TypeScript](https://www.typescriptlang.org/).
-- **Backend**: [Convex](https://convex.dev/) (Real-time database and serverless functions).
+- **Backend**: [Convex](https://convex.dev/) (Real-time database and serverless functions) for voice transcription and sync.
+- **Serverless**: Vercel serverless still powers the feedback endpoint at `/api/feedback`.
 - **AI Engine**: [Groq SDK](https://groq.com/) for high-speed transcription and NLP.
 - **Storage**: [Dexie.js](https://dexie.org/) for persistent local storage (IndexedDB).
 - **Visuals**: [Chart.js](https://www.chartjs.org/) for data visualization.
@@ -45,29 +46,37 @@
 ### Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/enoch-prince/VoxSpend.git
    cd voxspend
    ```
 
 2. **Install dependencies**:
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**:
    Create a `.env.local` file in the root and add your keys:
+
    ```env
    VITE_GROQ_API_KEY=your_groq_key_here
    VITE_CONVEX_URL=your_convex_deployment_url
+   GITHUB_TOKEN=your_github_token
+   GITHUB_REPO=your_github_repo_slug
+   VAPID_PUBLIC_KEY=your_vapid_public_key
+   VAPID_PRIVATE_KEY=your_vapid_private_key
    ```
 
-4. **Start Convex**:
-   ```bash
-   npx convex dev
-   ```
+   Notes:
+   - `VITE_GROQ_API_KEY` is used for Groq transcription and parsing.
+   - `VITE_CONVEX_URL` is required for Convex voice actions and push subscriptions.
+   - `GITHUB_TOKEN` and `GITHUB_REPO` are required for feedback issue creation.
+   - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` are required for push notifications.
 
-5. **Run the app**:
+4. **Run the app**:
    ```bash
    npm run dev
    ```
@@ -77,7 +86,7 @@
 ## 🏗️ Project Structure
 
 ```text
-├── api/             # Vercel serverless functions
+├── api/             # Vercel serverless functions (feedback and legacy voice proxy)
 ├── convex/          # Backend schema, mutations, and actions
 ├── public/          # Static assets and PWA icons
 ├── src/
@@ -95,6 +104,7 @@
 ## 📱 PWA & Offline Support
 
 VoxSpend is built with a **Local-First** philosophy.
+
 - **IndexedDB**: Expenses are first saved locally using Dexie.js.
 - **Background Sync**: Recordings captured offline are queued and processed automatically once the connection is restored.
 - **Service Worker**: The app is fully cached for lightning-fast loads even without an internet connection.

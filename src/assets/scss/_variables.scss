@@ -3,70 +3,87 @@
 // ============================================
 
 // -- Brand Colors --
-$primary: #2D7FF9;
-$primary-light: #5B9DFC;
-$primary-dark: #1A5FCC;
-$accent: #00D4AA;
-$accent-light: #33DFBE;
+$primary: #2d7ff9;
+$primary-light: #5b9dfc;
+$primary-dark: #1a5fcc;
+$accent: #00d4aa;
+$accent-light: #33dfbe;
 
 // -- Semantic Colors --
-$success: #10B981;
-$warning: #F59E0B;
-$danger: #F43F5E;
-$info: #06B6D4;
+$success: #10b981;
+$warning: #f59e0b;
+$danger: #f43f5e;
+$info: #06b6d4;
 
 // -- Category Colors --
-$cat-food: #2D7FF9;
-$cat-family: #8B5CF6;
-$cat-entertainment: #F43F5E;
-$cat-study: #F59E0B;
-$cat-transport: #10B981;
-$cat-utilities: #06B6D4;
-$cat-health: #EC4899;
-$cat-shopping: #6366F1;
-$cat-other: #64748B;
+$cat-food: #2d7ff9;
+$cat-family: #8b5cf6;
+$cat-entertainment: #f43f5e;
+$cat-study: #f59e0b;
+$cat-transport: #10b981;
+$cat-utilities: #06b6d4;
+$cat-health: #ec4899;
+$cat-shopping: #6366f1;
+$cat-other: #64748b;
 
 // -- MoMo Provider Colors --
-$momo-mtn: #FFCC00;
-$momo-telecel: #E40521;
-$momo-airteltigo: #E40000;
+$momo-mtn: #ffcc00;
+$momo-telecel: #e40521;
+$momo-airteltigo: #e40000;
 
 // -- Light Theme --
-$light-bg: #F0F4F8;
-$light-surface: #FFFFFF;
-$light-surface-alt: #E8EDF2;
-$light-text: #1A202C;
-$light-text-secondary: #64748B;
-$light-text-tertiary: #94A3B8;
-$light-border: #E2E8F0;
+$light-bg: #f0f4f8;
+$light-surface: #ffffff;
+$light-surface-alt: #e8edf2;
+$light-text: #1a202c;
+$light-text-secondary: #64748b;
+$light-text-tertiary: #94a3b8;
+$light-border: #e2e8f0;
 
 // -- Dark Theme --
-$dark-bg: #0F1117;
-$dark-surface: #1A1D2E;
+$dark-bg: #0f1117;
+$dark-surface: #1a1d2e;
 $dark-surface-alt: #242840;
-$dark-text: #F1F5F9;
-$dark-text-secondary: #94A3B8;
-$dark-text-tertiary: #64748B;
-$dark-border: #2A2E45;
+$dark-text: #f1f5f9;
+$dark-text-secondary: #94a3b8;
+$dark-text-tertiary: #64748b;
+$dark-border: #2a2e45;
 
 // -- Neumorphic Shadows --
-$neo-light-shadow: 6px 6px 14px #d1d9e6, -6px -6px 14px #ffffff;
-$neo-light-shadow-sm: 3px 3px 8px #d1d9e6, -3px -3px 8px #ffffff;
-$neo-light-inset: inset 3px 3px 8px #d1d9e6, inset -3px -3px 8px #ffffff;
-$neo-dark-shadow: 6px 6px 14px #0a0c14, -6px -6px 14px #24283e;
-$neo-dark-shadow-sm: 3px 3px 8px #0a0c14, -3px -3px 8px #24283e;
-$neo-dark-inset: inset 3px 3px 8px #0a0c14, inset -3px -3px 8px #24283e;
+$neo-light-shadow:
+  6px 6px 14px #d1d9e6,
+  -6px -6px 14px #ffffff;
+$neo-light-shadow-sm:
+  3px 3px 8px #d1d9e6,
+  -3px -3px 8px #ffffff;
+$neo-light-inset:
+  inset 3px 3px 8px #d1d9e6,
+  inset -3px -3px 8px #ffffff;
+$neo-dark-shadow:
+  6px 6px 14px #0a0c14,
+  -6px -6px 14px #24283e;
+$neo-dark-shadow-sm:
+  3px 3px 8px #0a0c14,
+  -3px -3px 8px #24283e;
+$neo-dark-inset:
+  inset 3px 3px 8px #0a0c14,
+  inset -3px -3px 8px #24283e;
 
 // -- Typography --
-$font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-$font-size-xs: 0.75rem;    // 12px
-$font-size-sm: 0.8125rem;  // 13px
+$font-family:
+  'Inter',
+  -apple-system,
+  BlinkMacSystemFont,
+  'Segoe UI',
+  sans-serif;
+$font-size-xs: 0.75rem; // 12px
+$font-size-sm: 0.8125rem; // 13px
 $font-size-base: 0.875rem; // 14px
-$font-size-md: 1rem;       // 16px
-$font-size-lg: 1.25rem;    // 20px
-$font-size-xl: 1.5rem;     // 24px
-$font-size-2xl: 2rem;      // 32px
-$font-size-3xl: 2.5rem;    // 40px
+$font-size-md: 1rem; // 16px
+$font-size-lg: 1.25rem; // 20px
+$font-size-xl: 1.5rem; // 24px
+$font-size-2xl: 2rem; // 32px
+$font-size-3xl: 2.5rem; // 40px
 
 // -- Spacing --
 $space-xs: 0.25rem;

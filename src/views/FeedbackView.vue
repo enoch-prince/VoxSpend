@@ -2,15 +2,20 @@
   <div class="feedback-view overflow-y-auto h-full">
     <div class="px-lg py-md">
       <header class="mb-lg flex items-center gap-md">
-        <button class="neo-button neo-button--ghost" style="padding: 8px;" @click="$router.back()">
+        <button class="neo-button neo-button--ghost" style="padding: 8px" @click="$router.back()">
           <span class="material-symbols-rounded">arrow_back</span>
         </button>
         <h1 class="text-xl font-bold">Send Feedback</h1>
       </header>
 
-      <div v-if="feedbackStore.isSuccess" class="neo-card flex flex-col items-center text-center py-xl">
+      <div
+        v-if="feedbackStore.isSuccess"
+        class="neo-card flex flex-col items-center text-center py-xl"
+      >
         <div class="success-icon mb-lg">
-          <span class="material-symbols-rounded text-success" style="font-size: 64px;">check_circle</span>
+          <span class="material-symbols-rounded text-success" style="font-size: 64px"
+            >check_circle</span
+          >
         </div>
         <h2 class="text-lg font-bold mb-sm">Thank You!</h2>
         <p class="text-secondary text-sm mb-lg">
@@ -24,11 +29,13 @@
       <form v-else @submit.prevent="handleSubmit" class="flex flex-col gap-lg">
         <!-- Category Selection -->
         <div class="flex flex-col gap-sm">
-          <label class="text-xs font-semibold text-secondary uppercase px-xs">I want to report a...</label>
+          <label class="text-xs font-semibold text-secondary uppercase px-xs"
+            >I want to report a...</label
+          >
           <div class="flex flex-wrap gap-sm">
-            <button 
+            <button
               type="button"
-              v-for="cat in categories" 
+              v-for="cat in categories"
               :key="cat.id"
               class="neo-chip"
               :class="{ 'neo-chip--active': form.type === cat.id }"
@@ -43,10 +50,10 @@
         <!-- Message -->
         <div class="flex flex-col gap-sm">
           <label class="text-xs font-semibold text-secondary uppercase px-xs">Message</label>
-          <textarea 
+          <textarea
             v-model="form.message"
-            class="neo-input" 
-            rows="5" 
+            class="neo-input"
+            rows="5"
             placeholder="Tell us what's on your mind..."
             required
           ></textarea>
@@ -54,14 +61,13 @@
 
         <!-- Email -->
         <div class="flex flex-col gap-sm">
-          <label class="text-xs font-semibold text-secondary uppercase px-xs">Email (Optional)</label>
-          <input 
-            v-model="form.email"
-            type="email" 
-            class="neo-input" 
-            placeholder="your@email.com"
-          />
-          <p class="text-xs text-tertiary px-xs">Provide an email if you'd like us to follow up with you.</p>
+          <label class="text-xs font-semibold text-secondary uppercase px-xs"
+            >Email (Optional)</label
+          >
+          <input v-model="form.email" type="email" class="neo-input" placeholder="your@email.com" />
+          <p class="text-xs text-tertiary px-xs">
+            Provide an email if you'd like us to follow up with you.
+          </p>
         </div>
 
         <!-- Metadata Info -->
@@ -76,8 +82,8 @@
         </div>
 
         <!-- Submit Button -->
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           class="neo-button neo-button--primary py-md mt-md"
           :disabled="feedbackStore.isSubmitting || !form.message.trim()"
         >
@@ -90,76 +96,82 @@
         </p>
       </form>
 
-      <div style="height: 40px;"></div>
+      <div style="height: 40px"></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useFeedbackStore, type FeedbackType } from '@/stores/feedback'
+  import { ref, reactive, onMounted } from 'vue';
+  import { useFeedbackStore, type FeedbackType } from '@/stores/feedback';
 
-const feedbackStore = useFeedbackStore()
-const appVersion = APP_VERSION
+  const feedbackStore = useFeedbackStore();
+  const appVersion = APP_VERSION;
 
-const categories: { id: FeedbackType; name: string; icon: string }[] = [
-  { id: 'bug', name: 'Bug Report', icon: 'bug_report' },
-  { id: 'feature', name: 'Feature Request', icon: 'add_circle' },
-  { id: 'improvement', name: 'Improvement', icon: 'auto_awesome' },
-  { id: 'general', name: 'General', icon: 'chat' }
-]
+  const categories: { id: FeedbackType; name: string; icon: string }[] = [
+    { id: 'bug', name: 'Bug Report', icon: 'bug_report' },
+    { id: 'feature', name: 'Feature Request', icon: 'add_circle' },
+    { id: 'improvement', name: 'Improvement', icon: 'auto_awesome' },
+    { id: 'general', name: 'General', icon: 'chat' },
+  ];
 
-const form = reactive({
-  type: 'bug' as FeedbackType,
-  message: '',
-  email: ''
-})
+  const form = reactive({
+    type: 'bug' as FeedbackType,
+    message: '',
+    email: '',
+  });
 
-onMounted(() => {
-  feedbackStore.resetStatus()
-})
+  onMounted(() => {
+    feedbackStore.resetStatus();
+  });
 
-function getDeviceInfo() {
-  const ua = navigator.userAgent
-  let device = 'Unknown Device'
-  if (/android/i.test(ua)) device = 'Android'
-  else if (/iPhone|iPad|iPod/i.test(ua)) device = 'iOS'
-  else if (/windows/i.test(ua)) device = 'Windows'
-  else if (/macintosh/i.test(ua)) device = 'MacOS'
-  
-  return `${device} • ${window.innerWidth}x${window.innerHeight}`
-}
+  function getDeviceInfo() {
+    const ua = navigator.userAgent;
+    let device = 'Unknown Device';
+    if (/android/i.test(ua)) device = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua)) device = 'iOS';
+    else if (/windows/i.test(ua)) device = 'Windows';
+    else if (/macintosh/i.test(ua)) device = 'MacOS';
 
-async function handleSubmit() {
-  if (!form.message.trim()) return
+    return `${device} • ${window.innerWidth}x${window.innerHeight}`;
+  }
 
-  await feedbackStore.submitFeedback({
-    type: form.type,
-    message: form.message,
-    email: form.email,
-    metadata: {
-      version: appVersion,
-      userAgent: navigator.userAgent,
-      screenSize: `${window.innerWidth}x${window.innerHeight}`,
-      timestamp: new Date().toISOString()
-    }
-  })
-}
+  async function handleSubmit() {
+    if (!form.message.trim()) return;
+
+    await feedbackStore.submitFeedback({
+      type: form.type,
+      message: form.message,
+      email: form.email,
+      metadata: {
+        version: appVersion,
+        userAgent: navigator.userAgent,
+        screenSize: `${window.innerWidth}x${window.innerHeight}`,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
 </script>
 
 <style lang="scss" scoped>
-.feedback-view {
-  textarea {
-    resize: none;
+  .feedback-view {
+    textarea {
+      resize: none;
+    }
   }
-}
 
-.success-icon {
-  animation: scaleUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
+  .success-icon {
+    animation: scaleUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
 
-@keyframes scaleUp {
-  from { transform: scale(0.5); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
+  @keyframes scaleUp {
+    from {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
 </style>

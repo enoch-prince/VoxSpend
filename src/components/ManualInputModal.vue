@@ -14,7 +14,10 @@
         <div class="manual-modal__type-toggle">
           <button
             class="manual-modal__type-btn"
-            :class="{ 'manual-modal__type-btn--active': form.type === 'expense', 'manual-modal__type-btn--expense': form.type === 'expense' }"
+            :class="{
+              'manual-modal__type-btn--active': form.type === 'expense',
+              'manual-modal__type-btn--expense': form.type === 'expense',
+            }"
             @click="form.type = 'expense'"
           >
             <span class="material-symbols-rounded icon-sm">arrow_upward</span>
@@ -22,7 +25,10 @@
           </button>
           <button
             class="manual-modal__type-btn"
-            :class="{ 'manual-modal__type-btn--active': form.type === 'income', 'manual-modal__type-btn--income': form.type === 'income' }"
+            :class="{
+              'manual-modal__type-btn--active': form.type === 'income',
+              'manual-modal__type-btn--income': form.type === 'income',
+            }"
             @click="form.type = 'income'"
           >
             <span class="material-symbols-rounded icon-sm">arrow_downward</span>
@@ -59,10 +65,18 @@
                 :key="cat.id"
                 class="manual-modal__cat-chip"
                 :class="{ 'manual-modal__cat-chip--active': form.category === cat.name }"
-                :style="form.category === cat.name ? { background: cat.color, color: '#fff', boxShadow: `0 4px 12px ${cat.color}40` } : {}"
+                :style="
+                  form.category === cat.name
+                    ? {
+                        background: cat.color,
+                        color: '#fff',
+                        boxShadow: `0 4px 12px ${cat.color}40`,
+                      }
+                    : {}
+                "
                 @click="form.category = cat.name"
               >
-                <span class="material-symbols-rounded" style="font-size: 16px;">{{ cat.icon }}</span>
+                <span class="material-symbols-rounded" style="font-size: 16px">{{ cat.icon }}</span>
                 <span>{{ cat.name }}</span>
               </button>
             </div>
@@ -89,12 +103,7 @@
               <span class="material-symbols-rounded icon-sm text-secondary">calendar_today</span>
               Date
             </label>
-            <input
-              v-model="form.date"
-              type="date"
-              class="neo-input"
-              id="manual-date-input"
-            />
+            <input v-model="form.date" type="date" class="neo-input" id="manual-date-input" />
           </div>
 
           <!-- Note -->
@@ -132,298 +141,301 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, nextTick, watch } from 'vue'
-import { useExpensesStore } from '@/stores/expenses'
-import { useCategoriesStore } from '@/stores/categories'
+  import { ref, reactive, computed, nextTick, watch } from 'vue';
+  import { useExpensesStore } from '@/stores/expenses';
+  import { useCategoriesStore } from '@/stores/categories';
 
-const emit = defineEmits<{
-  close: []
-  saved: []
-}>()
+  const emit = defineEmits<{
+    close: [];
+    saved: [];
+  }>();
 
-const props = defineProps<{
-  isOpen: boolean
-}>()
+  const props = defineProps<{
+    isOpen: boolean;
+  }>();
 
-const expensesStore = useExpensesStore()
-const categoriesStore = useCategoriesStore()
+  const expensesStore = useExpensesStore();
+  const categoriesStore = useCategoriesStore();
 
-const amountInput = ref<HTMLInputElement | null>(null)
-const amountDisplay = ref('')
+  const amountInput = ref<HTMLInputElement | null>(null);
+  const amountDisplay = ref('');
 
-const form = reactive({
-  amount: 0,
-  type: 'expense' as 'expense' | 'income',
-  category: 'Other',
-  merchant: '',
-  date: new Date().toISOString().split('T')[0],
-  note: ''
-})
+  const form = reactive({
+    amount: 0,
+    type: 'expense' as 'expense' | 'income',
+    category: 'Other',
+    merchant: '',
+    date: new Date().toISOString().split('T')[0],
+    note: '',
+  });
 
-const isValid = computed(() => form.amount > 0)
+  const isValid = computed(() => form.amount > 0);
 
-function onAmountInput() {
-  // Strip non-numeric characters except decimal point
-  const cleaned = amountDisplay.value.replace(/[^0-9.]/g, '')
-  // Prevent multiple decimal points
-  const parts = cleaned.split('.')
-  const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned
-  amountDisplay.value = sanitized
-  form.amount = parseFloat(sanitized) || 0
-}
-
-watch(() => props.isOpen, (open) => {
-  if (open) {
-    // Reset form when opening
-    resetForm()
-    nextTick(() => {
-      amountInput.value?.focus()
-    })
+  function onAmountInput() {
+    // Strip non-numeric characters except decimal point
+    const cleaned = amountDisplay.value.replace(/[^0-9.]/g, '');
+    // Prevent multiple decimal points
+    const parts = cleaned.split('.');
+    const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
+    amountDisplay.value = sanitized;
+    form.amount = parseFloat(sanitized) || 0;
   }
-})
 
-function resetForm() {
-  form.amount = 0
-  form.type = 'expense'
-  form.category = 'Other'
-  form.merchant = ''
-  form.date = new Date().toISOString().split('T')[0]
-  form.note = ''
-  amountDisplay.value = ''
-}
+  watch(
+    () => props.isOpen,
+    (open) => {
+      if (open) {
+        // Reset form when opening
+        resetForm();
+        nextTick(() => {
+          amountInput.value?.focus();
+        });
+      }
+    }
+  );
 
-async function saveExpense() {
-  if (!isValid.value) return
+  function resetForm() {
+    form.amount = 0;
+    form.type = 'expense';
+    form.category = 'Other';
+    form.merchant = '';
+    form.date = new Date().toISOString().split('T')[0];
+    form.note = '';
+    amountDisplay.value = '';
+  }
 
-  await expensesStore.addExpense({
-    amount: form.amount,
-    currency: 'GHS',
-    type: form.type,
-    category: form.category,
-    merchant: form.merchant || 'Unknown',
-    note: form.note || `Manual ${form.type}`,
-    date: form.date
-  })
+  async function saveExpense() {
+    if (!isValid.value) return;
 
-  emit('saved')
-  close()
-}
+    await expensesStore.addExpense({
+      amount: form.amount,
+      currency: 'GHS',
+      type: form.type,
+      category: form.category,
+      merchant: form.merchant || 'Unknown',
+      note: form.note || `Manual ${form.type}`,
+      date: form.date,
+    });
 
-function close() {
-  emit('close')
-}
+    emit('saved');
+    close();
+  }
+
+  function close() {
+    emit('close');
+  }
 </script>
 
 <style lang="scss">
-.manual-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  z-index: 200;
-  max-width: $max-app-width;
-  margin: 0 auto;
-
-  &__content {
-    width: 100%;
-    border-radius: $radius-xl $radius-xl 0 0;
-    padding: $space-lg;
-    padding-bottom: calc($space-xl + #{$safe-area-bottom});
-    max-height: 92vh;
-    overflow-y: auto;
-    animation: slide-up-modal 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  &__header {
+  .manual-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: $space-lg;
-  }
-
-  &__close {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: none;
-    background: var(--surface-alt);
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    cursor: pointer;
-    transition: all $transition-fast;
+    z-index: 200;
+    max-width: $max-app-width;
+    margin: 0 auto;
 
-    &:active {
-      transform: scale(0.9);
-      background: var(--border);
-    }
-  }
-
-  &__type-toggle {
-    display: flex;
-    gap: $space-xs;
-    padding: 4px;
-    background: var(--surface-alt);
-    border-radius: $radius-md;
-    margin-bottom: $space-lg;
-  }
-
-  &__type-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: $space-xs;
-    padding: 10px $space-md;
-    border: none;
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-tertiary);
-    font-family: $font-family;
-    font-size: $font-size-sm;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all $transition-fast;
-
-    &--active {
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    &__content {
+      width: 100%;
+      border-radius: $radius-xl $radius-xl 0 0;
+      padding: $space-lg;
+      padding-bottom: calc($space-xl + #{$safe-area-bottom});
+      max-height: 92vh;
+      overflow-y: auto;
+      animation: slide-up-modal 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    &--expense {
-      background: $danger;
+    &__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: $space-lg;
     }
 
-    &--income {
-      background: $success;
-    }
-  }
+    &__close {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: var(--surface-alt);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all $transition-fast;
 
-  &__amount-wrapper {
-    display: flex;
-    align-items: center;
-    gap: $space-sm;
-    padding: $space-md $space-lg;
-    background: var(--surface-alt);
-    border-radius: $radius-md;
-    margin-bottom: $space-lg;
-    border: 2px solid transparent;
-    transition: border-color $transition-fast;
-
-    &:focus-within {
-      border-color: $primary;
-    }
-  }
-
-  &__currency {
-    font-size: $font-size-lg;
-    font-weight: 800;
-    color: var(--text-tertiary);
-  }
-
-  &__amount-input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    outline: none;
-    font-family: $font-family;
-    font-size: $font-size-2xl;
-    font-weight: 800;
-    color: var(--text);
-    min-width: 0;
-
-    &::placeholder {
-      color: var(--text-tertiary);
-      opacity: 0.5;
-    }
-  }
-
-  &__fields {
-    display: flex;
-    flex-direction: column;
-    gap: $space-md;
-    margin-bottom: $space-lg;
-  }
-
-  &__field {
-    display: flex;
-    flex-direction: column;
-    gap: $space-xs;
-  }
-
-  &__label {
-    display: flex;
-    align-items: center;
-    gap: $space-xs;
-    font-size: $font-size-xs;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  &__category-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  &__cat-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border-radius: $radius-full;
-    border: 1.5px solid var(--border);
-    background: var(--surface);
-    color: var(--text-secondary);
-    font-family: $font-family;
-    font-size: $font-size-xs;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all $transition-fast;
-    white-space: nowrap;
-
-    &:active {
-      transform: scale(0.95);
+      &:active {
+        transform: scale(0.9);
+        background: var(--border);
+      }
     }
 
-    &--active {
-      border-color: transparent;
+    &__type-toggle {
+      display: flex;
+      gap: $space-xs;
+      padding: 4px;
+      background: var(--surface-alt);
+      border-radius: $radius-md;
+      margin-bottom: $space-lg;
     }
-  }
 
-  &__actions {
-    display: flex;
-    gap: $space-md;
-
-    .neo-button {
+    &__type-btn {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: $space-xs;
-      padding: 14px 20px;
+      padding: 10px $space-md;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-tertiary);
+      font-family: $font-family;
+      font-size: $font-size-sm;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
 
-      &:disabled {
-        opacity: 0.4;
-        pointer-events: none;
+      &--active {
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      &--expense {
+        background: $danger;
+      }
+
+      &--income {
+        background: $success;
+      }
+    }
+
+    &__amount-wrapper {
+      display: flex;
+      align-items: center;
+      gap: $space-sm;
+      padding: $space-md $space-lg;
+      background: var(--surface-alt);
+      border-radius: $radius-md;
+      margin-bottom: $space-lg;
+      border: 2px solid transparent;
+      transition: border-color $transition-fast;
+
+      &:focus-within {
+        border-color: $primary;
+      }
+    }
+
+    &__currency {
+      font-size: $font-size-lg;
+      font-weight: 800;
+      color: var(--text-tertiary);
+    }
+
+    &__amount-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: $font-family;
+      font-size: $font-size-2xl;
+      font-weight: 800;
+      color: var(--text);
+      min-width: 0;
+
+      &::placeholder {
+        color: var(--text-tertiary);
+        opacity: 0.5;
+      }
+    }
+
+    &__fields {
+      display: flex;
+      flex-direction: column;
+      gap: $space-md;
+      margin-bottom: $space-lg;
+    }
+
+    &__field {
+      display: flex;
+      flex-direction: column;
+      gap: $space-xs;
+    }
+
+    &__label {
+      display: flex;
+      align-items: center;
+      gap: $space-xs;
+      font-size: $font-size-xs;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    &__category-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    &__cat-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      border-radius: $radius-full;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-family: $font-family;
+      font-size: $font-size-xs;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+      white-space: nowrap;
+
+      &:active {
+        transform: scale(0.95);
+      }
+
+      &--active {
+        border-color: transparent;
+      }
+    }
+
+    &__actions {
+      display: flex;
+      gap: $space-md;
+
+      .neo-button {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: $space-xs;
+        padding: 14px 20px;
+
+        &:disabled {
+          opacity: 0.4;
+          pointer-events: none;
+        }
       }
     }
   }
-}
 
-@keyframes slide-up-modal {
-  from {
-    transform: translateY(100%);
-    opacity: 0.5;
+  @keyframes slide-up-modal {
+    from {
+      transform: translateY(100%);
+      opacity: 0.5;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
 </style>

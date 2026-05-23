@@ -2,33 +2,35 @@
 // User Profile Store
 // ============================================
 
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import type { UserProfile } from '@/types'
-import { encrypt, decrypt } from '@/utils/encryption'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import type { UserProfile } from '@/types';
+import { encrypt, decrypt } from '@/utils/encryption';
 
-const STORAGE_KEY = 'voxspend-user'
+const STORAGE_KEY = 'voxspend-user';
 
 export const useUserStore = defineStore('user', () => {
-  const profile = ref<UserProfile>(loadProfile())
-  
+  const profile = ref<UserProfile>(loadProfile());
+
   // Migration: If we loaded a plain-text key, encrypt it immediately
   if (profile.value.groqApiKey && profile.value.groqApiKey.startsWith('gsk_')) {
-    saveProfile()
+    saveProfile();
   }
 
   function loadProfile(): UserProfile {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
+      const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const data = JSON.parse(stored) as UserProfile
+        const data = JSON.parse(stored) as UserProfile;
         // Decrypt the API key if it exists
         if (data.groqApiKey) {
-          data.groqApiKey = decrypt(data.groqApiKey)
+          data.groqApiKey = decrypt(data.groqApiKey);
         }
-        return data
+        return data;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return {
       name: '',
@@ -37,54 +39,54 @@ export const useUserStore = defineStore('user', () => {
       groqApiKey: '',
       onboardingComplete: false,
       notificationsEnabled: false,
-      createdAt: new Date().toISOString()
-    }
+      createdAt: new Date().toISOString(),
+    };
   }
 
   function saveProfile() {
-    const dataToStore = { ...profile.value }
+    const dataToStore = { ...profile.value };
     // Encrypt the API key before storing
     if (dataToStore.groqApiKey) {
-      dataToStore.groqApiKey = encrypt(dataToStore.groqApiKey)
+      dataToStore.groqApiKey = encrypt(dataToStore.groqApiKey);
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToStore))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToStore));
   }
 
-  const isSetup = computed(() => profile.value.onboardingComplete)
-  const hasApiKey = computed(() => !!profile.value.groqApiKey)
+  const isSetup = computed(() => profile.value.onboardingComplete);
+  const hasApiKey = computed(() => !!profile.value.groqApiKey);
   const initials = computed(() => {
-    if (!profile.value.name) return '?'
+    if (!profile.value.name) return '?';
     return profile.value.name
       .split(' ')
-      .map(w => w[0])
+      .map((w) => w[0])
       .join('')
       .toUpperCase()
-      .substring(0, 2)
-  })
+      .substring(0, 2);
+  });
 
   function updateProfile(updates: Partial<UserProfile>) {
-    profile.value = { ...profile.value, ...updates }
+    profile.value = { ...profile.value, ...updates };
     if (updates.name) {
       profile.value.avatarInitials = updates.name
         .split(' ')
-        .map(w => w[0])
+        .map((w) => w[0])
         .join('')
         .toUpperCase()
-        .substring(0, 2)
+        .substring(0, 2);
     }
-    saveProfile()
+    saveProfile();
   }
 
   function completeOnboarding(name: string, apiKey: string) {
     updateProfile({
       name,
       groqApiKey: apiKey,
-      onboardingComplete: true
-    })
+      onboardingComplete: true,
+    });
   }
 
   function setApiKey(key: string) {
-    updateProfile({ groqApiKey: key })
+    updateProfile({ groqApiKey: key });
   }
 
   return {
@@ -94,6 +96,6 @@ export const useUserStore = defineStore('user', () => {
     initials,
     updateProfile,
     completeOnboarding,
-    setApiKey
-  }
-})
+    setApiKey,
+  };
+});

@@ -1,24 +1,24 @@
 export type GroqParseItem = {
-  amount: number
-  currency: string
-  type: 'expense' | 'income'
-  category: string
-  merchant: string
-  note: string
-  date: string
-}
+  amount: number;
+  currency: string;
+  type: 'expense' | 'income';
+  category: string;
+  merchant: string;
+  note: string;
+  date: string;
+};
 
 export type GroqParseResponse = {
-  results: GroqParseItem[]
-}
+  results: GroqParseItem[];
+};
 
 export function buildTranscriptionPrompt(): string {
-  return 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.'
+  return 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.';
 }
 
 export function buildGroqSystemPrompt(transcript: string, categories: string[]): string {
-  const today = new Date().toISOString().split('T')[0]
-  const categoryList = categories.length > 0 ? categories.join(', ') : 'Other'
+  const today = new Date().toISOString().split('T')[0];
+  const categoryList = categories.length > 0 ? categories.join(', ') : 'Other';
 
   return `You are a Ghanaian expense parser. Extract structured data from: "${transcript}"
   
@@ -39,23 +39,23 @@ export function buildGroqSystemPrompt(transcript: string, categories: string[]):
   - date should be in YYYY-MM-DD format.
   - If the user only mentions a number and a merchant, use that as the expense amount and merchant.
 
-  Return ONLY valid JSON (no markdown, no explanation): {"results": [{"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}]}`
+  Return ONLY valid JSON (no markdown, no explanation): {"results": [{"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}]}`;
 }
 
 export function parseGroqResponse(data: any): GroqParseResponse {
-  const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text
+  const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text;
   if (!content) {
-    throw new Error('No content in LLM response')
+    throw new Error('No content in LLM response');
   }
 
-  let parsed: any
+  let parsed: any;
   try {
-    parsed = JSON.parse(content)
+    parsed = JSON.parse(content);
   } catch (error) {
-    throw new Error('LLM response was not valid JSON')
+    throw new Error('LLM response was not valid JSON');
   }
 
-  const results = Array.isArray(parsed.results) ? parsed.results : []
+  const results = Array.isArray(parsed.results) ? parsed.results : [];
   return {
     results: results.map((item: any) => ({
       amount: Math.abs(Number(item.amount) || 0),
@@ -64,33 +64,37 @@ export function parseGroqResponse(data: any): GroqParseResponse {
       category: item.category || 'Other',
       merchant: item.merchant || 'Unknown',
       note: item.note || '',
-      date: item.date || new Date().toISOString().split('T')[0]
-    }))
-  }
+      date: item.date || new Date().toISOString().split('T')[0],
+    })),
+  };
 }
 
 export function buildMultipartFormData(
   fields: Record<string, string>,
   file: { name: string; filename: string; contentType: string; data: Buffer }
 ) {
-  const boundary = `----VoxSpendBoundary${Math.random().toString(16).slice(2)}`
-  const CRLF = '\r\n'
-  const parts: Buffer[] = []
+  const boundary = `----VoxSpendBoundary${Math.random().toString(16).slice(2)}`;
+  const CRLF = '\r\n';
+  const parts: Buffer[] = [];
 
   for (const [name, value] of Object.entries(fields)) {
-    parts.push(Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`))
+    parts.push(
+      Buffer.from(
+        `--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`
+      )
+    );
   }
 
   parts.push(
     Buffer.from(
       `--${boundary}${CRLF}Content-Disposition: form-data; name="${file.name}"; filename="${file.filename}"${CRLF}Content-Type: ${file.contentType}${CRLF}${CRLF}`
     )
-  )
-  parts.push(file.data)
-  parts.push(Buffer.from(`${CRLF}--${boundary}--${CRLF}`))
+  );
+  parts.push(file.data);
+  parts.push(Buffer.from(`${CRLF}--${boundary}--${CRLF}`));
 
   return {
     headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
     body: Buffer.concat(parts),
-  }
+  };
 }

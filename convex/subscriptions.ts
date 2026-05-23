@@ -1,12 +1,12 @@
-import { mutation, internalQuery } from "./_generated/server";
-import { v } from "convex/values";
+import { mutation, internalQuery } from './_generated/server';
+import { v } from 'convex/values';
 
 export const getActiveSubscriptions = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await ctx.db
-      .query("pushSubscriptions")
-      .filter((q) => q.eq(q.field("enabled"), true))
+      .query('pushSubscriptions')
+      .filter((q) => q.eq(q.field('enabled'), true))
       .collect();
   },
 });
@@ -21,15 +21,15 @@ export const saveSubscription = mutation({
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
-      .query("pushSubscriptions")
-      .withIndex("by_endpoint", (q) => q.eq("endpoint", args.endpoint))
+      .query('pushSubscriptions')
+      .withIndex('by_endpoint', (q) => q.eq('endpoint', args.endpoint))
       .first();
 
     if (existing) {
       // Update keys if they changed and ensure it's enabled
       await ctx.db.patch(existing._id, { keys: args.keys, enabled: true });
     } else {
-      await ctx.db.insert("pushSubscriptions", {
+      await ctx.db.insert('pushSubscriptions', {
         endpoint: args.endpoint,
         keys: args.keys,
         enabled: true,
@@ -44,8 +44,8 @@ export const removeSubscription = mutation({
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
-      .query("pushSubscriptions")
-      .withIndex("by_endpoint", (q) => q.eq("endpoint", args.endpoint))
+      .query('pushSubscriptions')
+      .withIndex('by_endpoint', (q) => q.eq('endpoint', args.endpoint))
       .first();
 
     if (existing) {

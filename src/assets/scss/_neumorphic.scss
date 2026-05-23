@@ -2,14 +2,16 @@
 // Neumorphic Design Utilities
 // ============================================
 
-@use "variables" as *;
+@use 'variables' as *;
 
 .neo-card {
   background: var(--surface);
   border-radius: $radius-lg;
   box-shadow: var(--neo-shadow);
   padding: $space-lg;
-  transition: box-shadow $transition-base, background $transition-base;
+  transition:
+    box-shadow $transition-base,
+    background $transition-base;
 }
 
 .neo-card-sm {
@@ -17,7 +19,9 @@
   border-radius: $radius-md;
   box-shadow: var(--neo-shadow-sm);
   padding: $space-md;
-  transition: box-shadow $transition-base, background $transition-base;
+  transition:
+    box-shadow $transition-base,
+    background $transition-base;
 }
 
 .neo-card-inset {
@@ -25,7 +29,9 @@
   border-radius: $radius-md;
   box-shadow: var(--neo-inset);
   padding: $space-md;
-  transition: box-shadow $transition-base, background $transition-base;
+  transition:
+    box-shadow $transition-base,
+    background $transition-base;
 }
 
 .neo-card-flat {
@@ -110,15 +116,21 @@
 
   &--recording {
     animation: pulse-ring 1.5s ease-out infinite;
-    background: linear-gradient(135deg, $danger, #FF6B8A);
+    background: linear-gradient(135deg, $danger, #ff6b8a);
     box-shadow: 0 6px 20px rgba($danger, 0.45);
   }
 }
 
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba($danger, 0.5); }
-  70% { box-shadow: 0 0 0 16px rgba($danger, 0); }
-  100% { box-shadow: 0 0 0 0 rgba($danger, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba($danger, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba($danger, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba($danger, 0);
+  }
 }
 
 .neo-input {
@@ -131,7 +143,9 @@
   color: var(--text);
   width: 100%;
   outline: none;
-  transition: border-color $transition-fast, box-shadow $transition-fast;
+  transition:
+    border-color $transition-fast,
+    box-shadow $transition-fast;
 
   &::placeholder {
     color: var(--text-tertiary);

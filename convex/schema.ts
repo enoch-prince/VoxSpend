@@ -1,5 +1,5 @@
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 
 export default defineSchema({
   pushSubscriptions: defineTable({
@@ -10,5 +10,5 @@ export default defineSchema({
     }),
     enabled: v.boolean(),
     // Store user identifier if we add auth later. For now, an anonymous local-first PWA can just use the subscription endpoint as a unique key.
-  }).index("by_endpoint", ["endpoint"]),
+  }).index('by_endpoint', ['endpoint']),
 });

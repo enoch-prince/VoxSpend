@@ -18,7 +18,10 @@
           <div class="detail-view__cat-icon" :style="{ background: catColor + '20' }">
             <span class="material-symbols-rounded" :style="{ color: catColor }">{{ catIcon }}</span>
           </div>
-          <p class="text-3xl font-extrabold mt-md" :class="expense.type === 'income' ? 'text-success' : ''">
+          <p
+            class="text-3xl font-extrabold mt-md"
+            :class="expense.type === 'income' ? 'text-success' : ''"
+          >
             {{ expense.type === 'income' ? '+' : '-' }}GH₵ {{ expense.amount.toFixed(2) }}
           </p>
           <p class="text-sm text-secondary mt-xs">{{ expense.merchant }}</p>
@@ -29,7 +32,9 @@
           <div class="detail-view__row">
             <span class="text-sm text-secondary">Category</span>
             <select v-if="editing" v-model="editData.category" class="neo-input">
-              <option v-for="c in categoriesStore.categoryNames" :key="c" :value="c">{{ c }}</option>
+              <option v-for="c in categoriesStore.categoryNames" :key="c" :value="c">
+                {{ c }}
+              </option>
             </select>
             <span v-else class="text-sm font-semibold">{{ expense.category }}</span>
           </div>
@@ -40,7 +45,10 @@
           </div>
           <div class="detail-view__row">
             <span class="text-sm text-secondary">Type</span>
-            <span class="text-sm font-semibold" :class="expense.type === 'income' ? 'text-success' : 'text-danger'">
+            <span
+              class="text-sm font-semibold"
+              :class="expense.type === 'income' ? 'text-success' : 'text-danger'"
+            >
               {{ expense.type === 'income' ? 'Income' : 'Expense' }}
             </span>
           </div>
@@ -61,7 +69,12 @@
           </button>
         </div>
 
-        <button v-else class="neo-button neo-button--danger w-full" @click="handleDelete" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+        <button
+          v-else
+          class="neo-button neo-button--danger w-full"
+          @click="handleDelete"
+          style="display: flex; align-items: center; justify-content: center; gap: 6px"
+        >
           <span class="material-symbols-rounded icon-sm">delete</span> Delete Transaction
         </button>
       </div>
@@ -74,62 +87,91 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useExpensesStore } from '@/stores/expenses'
-import { useCategoriesStore } from '@/stores/categories'
+  import { ref, computed, reactive, onMounted } from 'vue';
+  import { useRoute, useRouter } from 'vue-router';
+  import { useExpensesStore } from '@/stores/expenses';
+  import { useCategoriesStore } from '@/stores/categories';
 
-const route = useRoute()
-const router = useRouter()
-const expensesStore = useExpensesStore()
-const categoriesStore = useCategoriesStore()
+  const route = useRoute();
+  const router = useRouter();
+  const expensesStore = useExpensesStore();
+  const categoriesStore = useCategoriesStore();
 
-const editing = ref(false)
-const expense = computed(() => expensesStore.getExpenseById(route.params.id as string))
-const editData = reactive({ category: '', date: '', note: '' })
+  const editing = ref(false);
+  const expense = computed(() => expensesStore.getExpenseById(route.params.id as string));
+  const editData = reactive({ category: '', date: '', note: '' });
 
-onMounted(() => {
-  if (expense.value) {
-    editData.category = expense.value.category
-    editData.date = expense.value.date.split('T')[0]
-    editData.note = expense.value.note
+  onMounted(() => {
+    if (expense.value) {
+      editData.category = expense.value.category;
+      editData.date = expense.value.date.split('T')[0];
+      editData.note = expense.value.note;
+    }
+  });
+
+  const catColor = computed(
+    () => categoriesStore.getCategoryByName(expense.value?.category || '')?.color || '#64748B'
+  );
+  const catIcon = computed(
+    () => categoriesStore.getCategoryByName(expense.value?.category || '')?.icon || 'more_horiz'
+  );
+
+  function formatDate(d: string) {
+    return new Date(d).toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
   }
-})
 
-const catColor = computed(() => categoriesStore.getCategoryByName(expense.value?.category || '')?.color || '#64748B')
-const catIcon = computed(() => categoriesStore.getCategoryByName(expense.value?.category || '')?.icon || 'more_horiz')
+  async function handleSave() {
+    if (!expense.value) return;
+    await expensesStore.updateExpense(expense.value.id, editData);
+    editing.value = false;
+  }
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-async function handleSave() {
-  if (!expense.value) return
-  await expensesStore.updateExpense(expense.value.id, editData)
-  editing.value = false
-}
-
-async function handleDelete() {
-  if (!expense.value) return
-  await expensesStore.deleteExpense(expense.value.id)
-  router.back()
-}
+  async function handleDelete() {
+    if (!expense.value) return;
+    await expensesStore.deleteExpense(expense.value.id);
+    router.back();
+  }
 </script>
 
 <style lang="scss">
-.detail-view {
-  &__hero { text-align: center; }
-  &__cat-icon {
-    width: 56px; height: 56px; border-radius: $radius-lg;
-    display: inline-flex; align-items: center; justify-content: center;
-    .material-symbols-rounded { font-size: 28px; }
+  .detail-view {
+    &__hero {
+      text-align: center;
+    }
+    &__cat-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: $radius-lg;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      .material-symbols-rounded {
+        font-size: 28px;
+      }
+    }
+    &__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: $space-sm 0;
+      border-bottom: 1px solid var(--border);
+      &:last-child {
+        border-bottom: none;
+      }
+      .neo-input {
+        max-width: 160px;
+        padding: 6px 10px;
+        font-size: 13px;
+      }
+    }
+    &__not-found {
+      padding: $space-2xl;
+      text-align: center;
+    }
   }
-  &__row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: $space-sm 0; border-bottom: 1px solid var(--border);
-    &:last-child { border-bottom: none; }
-    .neo-input { max-width: 160px; padding: 6px 10px; font-size: 13px; }
-  }
-  &__not-found { padding: $space-2xl; text-align: center; }
-}
 </style>
