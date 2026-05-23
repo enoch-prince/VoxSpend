@@ -8,6 +8,12 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/auth',
+      name: 'auth',
+      component: () => import('@/views/AuthView.vue'),
+      meta: { title: 'Sign in — VoxSpend', hideNav: true, public: true },
+    },
+    {
       path: '/',
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),
@@ -64,23 +70,34 @@ const router = createRouter({
   ],
 });
 
-// Navigation guard: redirect to onboarding if not setup
 router.beforeEach((to) => {
-  const stored = localStorage.getItem('voxspend-user');
-  let isSetup = false;
-  try {
-    if (stored) {
-      isSetup = JSON.parse(stored).onboardingComplete === true;
+  // 1. Auth check — redirect unauthenticated users to /auth
+  const token = localStorage.getItem('voxspend-auth-token');
+  const isPublicRoute = to.meta.public === true;
+
+  if (!token && !isPublicRoute) {
+    return { name: 'auth' };
+  }
+
+  // 2. Already signed in — don't show /auth again
+  if (token && to.name === 'auth') {
+    return { name: 'dashboard' };
+  }
+
+  // 3. Onboarding check — redirect to onboarding if not set up yet
+  if (token && !isPublicRoute) {
+    const stored = localStorage.getItem('voxspend-user');
+    let isSetup = false;
+    try {
+      if (stored) isSetup = JSON.parse(stored).onboardingComplete === true;
+    } catch {
+      /* ignore */
     }
-  } catch {
-    /* ignore */
+    if (!isSetup && to.name !== 'onboarding' && to.name !== 'setup') {
+      return { name: 'onboarding' };
+    }
   }
 
-  if (!isSetup && to.name !== 'onboarding' && to.name !== 'setup') {
-    return { name: 'onboarding' };
-  }
-
-  // Update page title
   if (to.meta.title) {
     document.title = to.meta.title as string;
   }

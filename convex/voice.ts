@@ -15,12 +15,8 @@ export const transcribeAndParse = action({
     userGroqKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Auth guard — enforces identity once auth.config.ts has a provider configured.
-    // TODO: Replace console.warn with `throw new Error('Unauthorized')` when auth is enabled.
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      console.warn('[voice] Unauthenticated call to transcribeAndParse');
-    }
+    if (!identity) throw new Error('Unauthorized');
 
     // Use user-provided key, or fallback to server env key
     const GROQ_API_KEY = args.userGroqKey || process.env.GROQ_API_KEY;

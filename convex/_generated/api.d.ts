@@ -8,7 +8,11 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
+import type * as categories from "../categories.js";
 import type * as crons from "../crons.js";
+import type * as expenses from "../expenses.js";
+import type * as http from "../http.js";
 import type * as push from "../push.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as voice from "../voice.js";
@@ -20,7 +24,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
+  categories: typeof categories;
   crons: typeof crons;
+  expenses: typeof expenses;
+  http: typeof http;
   push: typeof push;
   subscriptions: typeof subscriptions;
   voice: typeof voice;

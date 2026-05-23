@@ -44,10 +44,12 @@
   import { useRegisterSW } from 'virtual:pwa-register/vue';
   import { useOnlineStatus } from '@/composables/useOnlineStatus';
   import { useThemeStore } from '@/stores/theme';
+  import { useAuthStore } from '@/stores/auth';
   import { useCategoriesStore } from '@/stores/categories';
   import { useExpensesStore } from '@/stores/expenses';
   import { useMomoStore } from '@/stores/momo';
   import { useVoiceStore } from '@/stores/voice';
+  import { db } from '@/services/database';
   import BottomNav from '@/components/BottomNav.vue';
   import VoiceInputModal from '@/components/VoiceInputModal.vue';
   import ManualInputModal from '@/components/ManualInputModal.vue';
@@ -57,8 +59,8 @@
 
   // Initialize stores
   const themeStore = useThemeStore();
-  // Referencing the store ensures its initialization runs (applyTheme side-effect)
-  void themeStore;
+  void themeStore; // side-effect: applies theme
+  const authStore = useAuthStore();
   const categoriesStore = useCategoriesStore();
   const expensesStore = useExpensesStore();
   const momoStore = useMomoStore();
@@ -68,29 +70,15 @@
     showManualInput.value = true;
   });
 
-  // Watch online status to trigger sync
   watch(isOnline, (online) => {
-    if (online) {
-      voiceStore.syncPendingNotes();
-    }
+    if (online) voiceStore.syncPendingNotes();
   });
 
-  // Register Service Worker with auto-update
   const { updateServiceWorker } = useRegisterSW({
     onRegistered(r) {
-      // Check for updates every 60 minutes
-      if (r) {
-        setInterval(
-          () => {
-            console.log('Checking for PWA updates...');
-            r.update();
-          },
-          60 * 60 * 1000
-        );
-      }
+      if (r) setInterval(() => r.update(), 60 * 60 * 1000);
     },
     onNeedRefresh() {
-      console.log('New content available, reloading...');
       updateServiceWorker(true);
     },
   });
@@ -98,14 +86,32 @@
   const showNav = computed(() => !route.meta.hideNav);
 
   onMounted(async () => {
+    authStore.initialize();
+
+    if (!authStore.isAuthenticated) return;
+
+    // Check for local IndexedDB data to migrate (one-time, on first cloud sign-in)
+    const migrationDone = localStorage.getItem('voxspend-migrated');
+    if (!migrationDone) {
+      const [localExpenses, localCategories] = await Promise.all([
+        db.expenses.toArray(),
+        db.categories.toArray(),
+      ]);
+      if (localExpenses.length > 0 || localCategories.filter((c) => c.isCustom).length > 0) {
+        await categoriesStore.migrateFromLocal(localCategories);
+        await expensesStore.migrateFromLocal(localExpenses);
+        await db.expenses.clear();
+        await db.categories.clear();
+      }
+      localStorage.setItem('voxspend-migrated', '1');
+    }
+
     await categoriesStore.initialize();
     await expensesStore.fetchExpenses();
     await momoStore.fetchAccounts();
 
     await voiceStore.updatePendingCount();
-    if (isOnline.value) {
-      voiceStore.syncPendingNotes();
-    }
+    if (isOnline.value) voiceStore.syncPendingNotes();
   });
 </script>
 

@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@convex-dev/auth": "^0.0.92",
     "chart.js": "^4.4.7",
     "convex": "^1.38.0",
     "dexie": "^4.0.11",

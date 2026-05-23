@@ -1,62 +1,87 @@
 // ============================================
-// Expenses Store (Local-First)
+// Expenses Store — Convex-backed
 // ============================================
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { db, generateId, now } from '@/services/database';
+import { convex, api } from '@/services/convexClient';
+import { now } from '@/services/database';
 import type { Expense, CategoryBreakdown, DayGroup } from '@/types';
 import { useCategoriesStore } from './categories';
+import type { Id } from '../../convex/_generated/dataModel';
+
+// Convex stores _id (Id<"expenses">) as the primary key.
+// We expose it as `id` on the local Expense type for compatibility.
+type ConvexExpense = Omit<Expense, 'id' | 'synced'> & {
+  _id: Id<'expenses'>;
+  _creationTime: number;
+  userId: Id<'users'>;
+};
+
+function fromConvex(doc: ConvexExpense): Expense {
+  return {
+    id: doc._id,
+    amount: doc.amount,
+    currency: doc.currency,
+    type: doc.type,
+    category: doc.category,
+    merchant: doc.merchant,
+    note: doc.note,
+    date: doc.date,
+    momoAccountId: doc.momoAccountId,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+    synced: true,
+  };
+}
 
 export const useExpensesStore = defineStore('expenses', () => {
   const expenses = ref<Expense[]>([]);
   const loading = ref(false);
 
-  // ---- Computed ----
+  // ---- Computed (unchanged) ----
   const totalExpenses = computed(() =>
-    expenses.value.filter((e) => e.type === 'expense').reduce((sum, e) => sum + e.amount, 0)
+    expenses.value.filter((e) => e.type === 'expense').reduce((sum, e) => sum + e.amount, 0),
   );
 
   const totalIncome = computed(() =>
-    expenses.value.filter((e) => e.type === 'income').reduce((sum, e) => sum + e.amount, 0)
+    expenses.value.filter((e) => e.type === 'income').reduce((sum, e) => sum + e.amount, 0),
   );
 
   const balance = computed(() => totalIncome.value - totalExpenses.value);
 
   const currentMonthExpenses = computed(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = d.getMonth();
     return expenses.value.filter((e) => {
-      const d = new Date(e.date);
-      return d.getFullYear() === year && d.getMonth() === month;
+      const ed = new Date(e.date);
+      return ed.getFullYear() === year && ed.getMonth() === month;
     });
   });
 
   const currentMonthTotal = computed(() =>
     currentMonthExpenses.value
       .filter((e) => e.type === 'expense')
-      .reduce((sum, e) => sum + e.amount, 0)
+      .reduce((sum, e) => sum + e.amount, 0),
   );
 
   const currentMonthIncome = computed(() =>
     currentMonthExpenses.value
       .filter((e) => e.type === 'income')
-      .reduce((sum, e) => sum + e.amount, 0)
+      .reduce((sum, e) => sum + e.amount, 0),
   );
 
   const categoryBreakdown = computed((): CategoryBreakdown[] => {
     const catStore = useCategoriesStore();
     const monthExpenses = currentMonthExpenses.value.filter((e) => e.type === 'expense');
     const total = monthExpenses.reduce((s, e) => s + e.amount, 0);
-
     const grouped: Record<string, { total: number; count: number }> = {};
     monthExpenses.forEach((e) => {
       if (!grouped[e.category]) grouped[e.category] = { total: 0, count: 0 };
       grouped[e.category].total += e.amount;
       grouped[e.category].count++;
     });
-
     return Object.entries(grouped)
       .map(([category, data]) => {
         const cat = catStore.getCategoryByName(category);
@@ -74,19 +99,16 @@ export const useExpensesStore = defineStore('expenses', () => {
 
   const expensesByDate = computed((): DayGroup[] => {
     const sorted = [...expenses.value].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
-
     const groups: Record<string, Expense[]> = {};
     sorted.forEach((e) => {
       const dateKey = e.date.split('T')[0];
       if (!groups[dateKey]) groups[dateKey] = [];
       groups[dateKey].push(e);
     });
-
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
     return Object.entries(groups).map(([date, items]) => ({
       label: date === today ? 'Today' : date === yesterday ? 'Yesterday' : formatDateLabel(date),
       date,
@@ -97,74 +119,59 @@ export const useExpensesStore = defineStore('expenses', () => {
   const recentExpenses = computed(() =>
     [...expenses.value]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
+      .slice(0, 5),
   );
 
   // ---- Actions ----
   async function fetchExpenses() {
     loading.value = true;
     try {
-      expenses.value = await db.expenses.orderBy('date').reverse().toArray();
+      const docs = await convex.query(api.expenses.list);
+      expenses.value = (docs as ConvexExpense[]).map(fromConvex);
     } finally {
       loading.value = false;
     }
   }
 
   async function addExpense(data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) {
-    const expense: Expense = {
+    const ts = now();
+    const id = await convex.mutation(api.expenses.add, {
       ...data,
-      id: generateId(),
-      createdAt: now(),
-      updatedAt: now(),
-      synced: false,
-    };
-    await db.expenses.add(expense);
-    expenses.value.unshift(expense);
-
-    // Queue for sync
-    await db.syncQueue.add({
-      action: 'create',
-      table: 'expenses',
-      entityId: expense.id,
-      data: expense as unknown as Record<string, unknown>,
-      createdAt: now(),
-      retries: 0,
+      createdAt: ts,
+      updatedAt: ts,
     });
-
+    const expense: Expense = { ...data, id: id as string, createdAt: ts, updatedAt: ts, synced: true };
+    expenses.value.unshift(expense);
     return expense;
   }
 
   async function updateExpense(id: string, updates: Partial<Expense>) {
-    const updated = { ...updates, updatedAt: now() };
-    await db.expenses.update(id, updated);
-
+    const updatedAt = now();
+    // Exclude local-only fields that are not part of the Convex mutation args
+    const { id: _id, synced: _s, createdAt: _c, userId: _u, ...mutableFields } = updates as Record<string, unknown>;
+    await convex.mutation(api.expenses.update, {
+      id: id as unknown as Id<'expenses'>,
+      ...mutableFields,
+      updatedAt,
+    });
     const idx = expenses.value.findIndex((e) => e.id === id);
     if (idx !== -1) {
-      expenses.value[idx] = { ...expenses.value[idx], ...updated };
+      expenses.value[idx] = { ...expenses.value[idx], ...updates, updatedAt };
     }
-
-    await db.syncQueue.add({
-      action: 'update',
-      table: 'expenses',
-      entityId: id,
-      data: updated as unknown as Record<string, unknown>,
-      createdAt: now(),
-      retries: 0,
-    });
   }
 
   async function deleteExpense(id: string) {
-    await db.expenses.delete(id);
+    await convex.mutation(api.expenses.remove, { id: id as Id<'expenses'> });
     expenses.value = expenses.value.filter((e) => e.id !== id);
+  }
 
-    await db.syncQueue.add({
-      action: 'delete',
-      table: 'expenses',
-      entityId: id,
-      data: {},
-      createdAt: now(),
-      retries: 0,
+  // Migrate local IndexedDB expenses to Convex on first sign-in
+  async function migrateFromLocal(localExpenses: Expense[]) {
+    if (localExpenses.length === 0) return;
+    await convex.mutation(api.expenses.bulkAdd, {
+      expenses: localExpenses.map(({ id: _id, synced: _s, ...rest }) => rest),
     });
+    await fetchExpenses();
   }
 
   function getExpenseById(id: string): Expense | undefined {
@@ -191,9 +198,8 @@ export const useExpensesStore = defineStore('expenses', () => {
           e.amount.toFixed(2),
           e.currency,
           `"${e.note}"`,
-        ].join(',')
+        ].join(','),
       );
-
     return [headers.join(','), ...rows].join('\n');
   }
 
@@ -224,6 +230,7 @@ export const useExpensesStore = defineStore('expenses', () => {
     addExpense,
     updateExpense,
     deleteExpense,
+    migrateFromLocal,
     getExpenseById,
     getExpensesForMonth,
     exportCSV,

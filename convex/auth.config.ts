@@ -1,14 +1,10 @@
-// Configure your JWT auth provider here.
-// See: https://docs.convex.dev/auth
-//
-// Example for Clerk:
-//   {
-//     domain: "https://your-clerk-domain.clerk.accounts.dev",
-//     applicationID: "convex",
-//   }
-//
-// Once a provider is added, change the `console.warn` lines in voice.ts and
-// subscriptions.ts to `throw new Error('Unauthorized')` to start enforcing.
+// @convex-dev/auth signs tokens using CONVEX_SITE_URL as the issuer.
+// This tells Convex to trust JWTs issued by the auth system.
 export default {
-  providers: [],
+  providers: [
+    {
+      domain: process.env.CONVEX_SITE_URL,
+      applicationID: 'convex',
+    },
+  ],
 };
