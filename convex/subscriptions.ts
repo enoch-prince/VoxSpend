@@ -20,6 +20,13 @@ export const saveSubscription = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    // Auth guard — enforces identity once auth.config.ts has a provider configured.
+    // TODO: Replace console.warn with `throw new Error('Unauthorized')` when auth is enabled.
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      console.warn('[subscriptions] Unauthenticated call to saveSubscription');
+    }
+
     const existing = await ctx.db
       .query('pushSubscriptions')
       .withIndex('by_endpoint', (q) => q.eq('endpoint', args.endpoint))
@@ -43,6 +50,13 @@ export const removeSubscription = mutation({
     endpoint: v.string(),
   },
   handler: async (ctx, args) => {
+    // Auth guard — enforces identity once auth.config.ts has a provider configured.
+    // TODO: Replace console.warn with `throw new Error('Unauthorized')` when auth is enabled.
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      console.warn('[subscriptions] Unauthenticated call to removeSubscription');
+    }
+
     const existing = await ctx.db
       .query('pushSubscriptions')
       .withIndex('by_endpoint', (q) => q.eq('endpoint', args.endpoint))
