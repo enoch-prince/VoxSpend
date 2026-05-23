@@ -1,34 +1,7 @@
 "use node";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-
-function buildMultipartFormData(
-  fields: Record<string, string>,
-  file: { name: string; filename: string; contentType: string; data: Buffer }
-) {
-  const boundary = `----VoxSpendBoundary${Math.random().toString(16).slice(2)}`
-  const CRLF = '\r\n'
-  const parts: Buffer[] = []
-
-  for (const [name, value] of Object.entries(fields)) {
-    parts.push(
-      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`)
-    )
-  }
-
-  parts.push(
-    Buffer.from(
-      `--${boundary}${CRLF}Content-Disposition: form-data; name="${file.name}"; filename="${file.filename}"${CRLF}Content-Type: ${file.contentType}${CRLF}${CRLF}`
-    )
-  )
-  parts.push(file.data)
-  parts.push(Buffer.from(`${CRLF}--${boundary}--${CRLF}`))
-
-  return {
-    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-    body: Buffer.concat(parts),
-  }
-}
+import { buildMultipartFormData, buildGroqSystemPrompt, buildTranscriptionPrompt, parseGroqResponse } from "../src/services/groqHelpers";
 
 export const transcribeAndParse = action({
   args: {
@@ -51,7 +24,7 @@ export const transcribeAndParse = action({
         {
           model: "whisper-large-v3",
           response_format: "text",
-          prompt: "GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo."
+          prompt: buildTranscriptionPrompt(),
         },
         {
           name: "file",
@@ -78,25 +51,7 @@ export const transcribeAndParse = action({
       const transcript = (await transcriptionRes.text()).trim();
 
       // 3. Parse with Llama
-      const today = new Date().toISOString().split("T")[0];
-      const systemPrompt = `You are a Ghanaian expense parser. Extract structured data from: "${transcript}"
-      
-      LOCAL CONTEXT:
-      - Primary currency: GHS (Ghana Cedis).
-      - "CDs" or "gunna CDs" means "Cedis". Example: "100 CDs" = 100 GHS.
-      - Handle word-form numbers: "a hundred and fifty thousand" = 150000.
-      - "MoMo" refers to Mobile Money.
-      - Common categories: Food, Transport (Trotro/Taxi), Utilities, Family, Health, Shopping, Other.
-      - Today is: ${today}
-
-      RULES:
-      - Extract ALL expenses or income mentioned. If multiple items are mentioned, return an array of objects.
-      - ALWAYS extract a numerical amount for each item.
-      - Pick the best matching category from: ${args.categories.join(", ")}
-      - merchant should be the specific shop, person, or service (e.g., "Melcom", "Momo Transfer", "Uncle Ato").
-      - You MUST return a JSON object with a "results" key containing an array of objects.
-      
-      Return ONLY valid JSON (no markdown, no explanation): {"results": [{"amount": number, "currency": "GHS", "type": "expense"|"income", "category": "string", "merchant": "string", "note": "string", "date": "YYYY-MM-DD"}]}`
+      const systemPrompt = buildGroqSystemPrompt(transcript, args.categories)
 
       const parseRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -112,7 +67,7 @@ export const transcribeAndParse = action({
       });
 
       const parseData = await parseRes.json();
-      const result = JSON.parse(parseData.choices[0].message.content);
+      const result = parseGroqResponse(parseData);
 
       return { transcript, result };
     } catch (error: any) {
