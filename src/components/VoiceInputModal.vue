@@ -158,13 +158,19 @@
             </div>
           </div>
 
+          <p v-if="voiceStore.errorMessage" class="voice-modal__inline-error mt-md">
+            <span class="material-symbols-rounded icon-sm">error</span>
+            {{ voiceStore.errorMessage }}
+          </p>
+
           <div class="voice-modal__actions mt-lg">
             <button class="neo-button neo-button--ghost" @click="voiceStore.cancel">
               Discard All
             </button>
             <button class="neo-button neo-button--primary" @click="voiceStore.confirmExpense">
               <span class="material-symbols-rounded icon-sm">check_circle</span>
-              Save {{ voiceStore.parsedExpenses?.length || 0 }} Expenses
+              {{ voiceStore.errorMessage ? 'Retry' : 'Save' }}
+              {{ voiceStore.parsedExpenses?.length || 0 }} Expenses
             </button>
           </div>
         </div>
@@ -374,6 +380,18 @@
       align-items: center;
       text-align: center;
       padding: $space-lg 0;
+    }
+
+    &__inline-error {
+      display: flex;
+      align-items: center;
+      gap: $space-sm;
+      padding: $space-sm $space-md;
+      border-radius: $radius-md;
+      background: rgba($danger, 0.1);
+      color: $danger;
+      font-size: $font-size-sm;
+      font-weight: 600;
     }
 
     &__actions {

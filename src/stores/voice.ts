@@ -11,6 +11,7 @@ import { useExpensesStore } from './expenses';
 import { useCategoriesStore } from './categories';
 import { db, now } from '@/services/database';
 import { convex, api } from '@/services/convexClient';
+import { toFriendlyError } from '@/utils/errors';
 import type { ParsedExpense } from '@/types';
 
 export type VoiceState =
@@ -128,7 +129,7 @@ export const useVoiceStore = defineStore('voice', () => {
         }
       } else {
         state.value = 'error';
-        errorMessage.value = err instanceof Error ? err.message : 'Processing failed';
+        errorMessage.value = toFriendlyError(err, 'Processing failed.').message;
       }
     }
   }
@@ -190,20 +191,36 @@ export const useVoiceStore = defineStore('voice', () => {
   async function confirmExpense() {
     if (parsedExpenses.value.length === 0) return;
 
+    errorMessage.value = '';
     const expensesStore = useExpensesStore();
-    for (const exp of parsedExpenses.value) {
-      await expensesStore.addExpense({
-        amount: exp.amount,
-        currency: exp.currency,
-        type: exp.type,
-        category: exp.category,
-        merchant: exp.merchant,
-        note: exp.note,
-        date: exp.date,
-      });
-    }
+    // Snapshot the list so we can pop saved items off the live array as we go.
+    // Why: if a network failure hits mid-batch, the remaining items stay on
+    // screen for the user to retry — and the already-saved ones don't get
+    // duplicated on the retry pass.
+    const queue = [...parsedExpenses.value];
 
-    reset();
+    try {
+      for (const exp of queue) {
+        await expensesStore.addExpense({
+          amount: exp.amount,
+          currency: exp.currency,
+          type: exp.type,
+          category: exp.category,
+          merchant: exp.merchant,
+          note: exp.note,
+          date: exp.date,
+        });
+        parsedExpenses.value.shift();
+      }
+      reset();
+    } catch (err) {
+      // Stay on the confirm screen — VoiceInputModal renders errorMessage
+      // inline so the user can retry without losing their parsed data.
+      errorMessage.value = toFriendlyError(
+        err,
+        "Couldn't save your expenses. Please try again.",
+      ).message;
+    }
   }
 
   function updateParsed(index: number, updates: Partial<ParsedExpense>) {
