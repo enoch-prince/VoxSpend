@@ -11,8 +11,10 @@
         class="offline-banner"
         style="background: var(--primary); color: white"
       >
-        <span><span class="material-symbols-rounded icon-sm spin-animation">sync</span>
-        <p class="text-secondary">Syncing {{ voiceStore.pendingCount }} voice note(s)...</p></span>
+        <div class="flex items-center justify-center gap-sm">
+        <span class="text-secondary material-symbols-rounded icon-sm spin-animation">sync</span>
+        <p class="text-secondary">Syncing {{ voiceStore.pendingCount }} voice note(s)...</p>
+          </div>
       </div>
     </transition>
 
