@@ -6,13 +6,18 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { convex, api, setConvexToken, clearConvexToken } from '@/services/convexClient';
 import { toFriendlyError } from '@/utils/errors';
+import { setSyncUser } from '@/services/syncEngine';
 
 const TOKEN_KEY = 'voxspend-auth-token';
 const REFRESH_KEY = 'voxspend-auth-refresh';
+const USER_ID_KEY = 'voxspend-current-user-id';
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(null);
   const refreshToken = ref<string | null>(null);
+  // The Convex `users._id` of the signed-in user. Persisted to localStorage
+  // so Dexie queries can scope by userId offline (the `me` query needs network).
+  const currentUserId = ref<string | null>(null);
   const isInitialized = ref(false);
 
   const isAuthenticated = computed(() => !!token.value);
@@ -21,10 +26,13 @@ export const useAuthStore = defineStore('auth', () => {
   function initialize() {
     const stored = localStorage.getItem(TOKEN_KEY);
     const storedRefresh = localStorage.getItem(REFRESH_KEY);
+    const storedUserId = localStorage.getItem(USER_ID_KEY);
     if (stored) {
       token.value = stored;
       refreshToken.value = storedRefresh;
+      currentUserId.value = storedUserId;
       setConvexToken(stored);
+      setSyncUser(storedUserId);
     }
     isInitialized.value = true;
   }
@@ -40,9 +48,32 @@ export const useAuthStore = defineStore('auth', () => {
   function _clearTokens() {
     token.value = null;
     refreshToken.value = null;
+    currentUserId.value = null;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(USER_ID_KEY);
     clearConvexToken();
+    setSyncUser(null);
+  }
+
+  /**
+   * Fetch the signed-in user's Convex _id and pin it to the sync engine.
+   * Call this after sign-in/sign-up and after restoring a token from
+   * localStorage on app boot. Safe to call repeatedly.
+   */
+  async function resolveUserId(): Promise<string | null> {
+    if (!token.value) return null;
+    try {
+      const id = (await convex.query(api.auth.me)) as string | null;
+      currentUserId.value = id;
+      if (id) localStorage.setItem(USER_ID_KEY, id);
+      else localStorage.removeItem(USER_ID_KEY);
+      setSyncUser(id);
+      return id;
+    } catch {
+      // Offline or transient error — keep whatever we already had cached.
+      return currentUserId.value;
+    }
   }
 
   async function signIn(email: string, password: string) {
@@ -85,9 +116,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     token,
+    currentUserId,
     isAuthenticated,
     isInitialized,
     initialize,
+    resolveUserId,
     signIn,
     signUp,
     signOut,
