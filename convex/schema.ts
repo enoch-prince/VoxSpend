@@ -10,7 +10,11 @@ export default defineSchema({
   // instead of creating duplicates (idempotency).
   expenses: defineTable({
     userId: v.id('users'),
-    clientId: v.string(),
+    // Optional in the schema so legacy rows (pre-sync-layer) pass validation.
+    // The `upsert`/`update`/`remove` mutations still require it via their
+    // arg validators, so every NEW row gets one. Run convex/migrations to
+    // backfill old rows; afterwards every row will have a clientId.
+    clientId: v.optional(v.string()),
     amount: v.number(),
     currency: v.string(),
     type: v.union(v.literal('expense'), v.literal('income')),
@@ -28,7 +32,11 @@ export default defineSchema({
 
   categories: defineTable({
     userId: v.id('users'),
-    clientId: v.string(),
+    // Optional in the schema so legacy rows (pre-sync-layer) pass validation.
+    // The `upsert`/`update`/`remove` mutations still require it via their
+    // arg validators, so every NEW row gets one. Run convex/migrations to
+    // backfill old rows; afterwards every row will have a clientId.
+    clientId: v.optional(v.string()),
     name: v.string(),
     icon: v.string(),
     color: v.string(),
@@ -40,7 +48,11 @@ export default defineSchema({
 
   momoAccounts: defineTable({
     userId: v.id('users'),
-    clientId: v.string(),
+    // Optional in the schema so legacy rows (pre-sync-layer) pass validation.
+    // The `upsert`/`update`/`remove` mutations still require it via their
+    // arg validators, so every NEW row gets one. Run convex/migrations to
+    // backfill old rows; afterwards every row will have a clientId.
+    clientId: v.optional(v.string()),
     provider: v.union(v.literal('mtn'), v.literal('telecel'), v.literal('airteltigo')),
     phoneNumber: v.string(),
     nickname: v.string(),
