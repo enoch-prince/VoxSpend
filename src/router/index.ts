@@ -53,7 +53,7 @@ const router = createRouter({
       path: '/onboarding',
       name: 'onboarding',
       component: () => import('@/views/OnboardingView.vue'),
-      meta: { title: 'Welcome — VoxSpend', hideNav: true },
+      meta: { title: 'Welcome — VoxSpend', hideNav: true, public: true },
     },
     {
       path: '/setup',
@@ -70,13 +70,18 @@ const router = createRouter({
   ],
 });
 
+// Splash gate — resets on every page load, so the intro slides show as the
+// first screen each time the app opens, regardless of auth or prior visits.
+let introShownThisLoad = false;
+
 router.beforeEach((to) => {
-  // 1. Auth check — redirect unauthenticated users to /auth
   const token = localStorage.getItem('voxspend-auth-token');
   const isPublicRoute = to.meta.public === true;
 
-  if (!token && !isPublicRoute) {
-    return { name: 'auth' };
+  // 1. Splash — first navigation of every fresh load goes through the intro
+  if (!introShownThisLoad) {
+    introShownThisLoad = true;
+    if (to.name !== 'onboarding') return { name: 'onboarding' };
   }
 
   // 2. Already signed in — don't show /auth again
@@ -84,7 +89,12 @@ router.beforeEach((to) => {
     return { name: 'dashboard' };
   }
 
-  // 3. Onboarding check — redirect to onboarding if not set up yet
+  // 3. Auth check — redirect unauthenticated users to /auth
+  if (!token && !isPublicRoute) {
+    return { name: 'auth' };
+  }
+
+  // 4. Setup check — signed in but hasn't configured profile yet
   if (token && !isPublicRoute) {
     const stored = localStorage.getItem('voxspend-user');
     let isSetup = false;
@@ -93,8 +103,8 @@ router.beforeEach((to) => {
     } catch {
       /* ignore */
     }
-    if (!isSetup && to.name !== 'onboarding' && to.name !== 'setup') {
-      return { name: 'onboarding' };
+    if (!isSetup && to.name !== 'setup') {
+      return { name: 'setup' };
     }
   }
 

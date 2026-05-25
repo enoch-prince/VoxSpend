@@ -47,14 +47,14 @@
         v-else
         class="neo-button neo-button--primary w-full"
         style="padding: 16px; font-size: 16px"
-        @click="$router.push('/setup')"
+        @click="finishIntro"
       >
         Get Started
       </button>
       <button
         v-if="currentSlide < slides.length - 1"
         class="neo-button neo-button--ghost w-full mt-sm"
-        @click="$router.push('/setup')"
+        @click="finishIntro"
       >
         Skip
       </button>
@@ -64,8 +64,16 @@
 
 <script setup lang="ts">
   import { ref } from 'vue';
+  import { useRouter } from 'vue-router';
 
+  const router = useRouter();
   const currentSlide = ref(0);
+
+  function finishIntro() {
+    // Route to dashboard and let the router guard send signed-out users to
+    // /auth and not-yet-configured users to /setup.
+    router.replace('/');
+  }
 
   const slides = [
     {
