@@ -13,6 +13,8 @@ import type * as categories from "../categories.js";
 import type * as crons from "../crons.js";
 import type * as expenses from "../expenses.js";
 import type * as http from "../http.js";
+import type * as migrations from "../migrations.js";
+import type * as momoAccounts from "../momoAccounts.js";
 import type * as push from "../push.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as voice from "../voice.js";
@@ -29,6 +31,8 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   expenses: typeof expenses;
   http: typeof http;
+  migrations: typeof migrations;
+  momoAccounts: typeof momoAccounts;
   push: typeof push;
   subscriptions: typeof subscriptions;
   voice: typeof voice;
