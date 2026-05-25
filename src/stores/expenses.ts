@@ -6,6 +6,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { convex, api } from '@/services/convexClient';
 import { now } from '@/services/database';
+import { toFriendlyError } from '@/utils/errors';
 import type { Expense, CategoryBreakdown, DayGroup } from '@/types';
 import { useCategoriesStore } from './categories';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -128,6 +129,8 @@ export const useExpensesStore = defineStore('expenses', () => {
     try {
       const docs = await convex.query(api.expenses.list);
       expenses.value = (docs as ConvexExpense[]).map(fromConvex);
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't load your expenses.");
     } finally {
       loading.value = false;
     }
@@ -135,43 +138,65 @@ export const useExpensesStore = defineStore('expenses', () => {
 
   async function addExpense(data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) {
     const ts = now();
-    const id = await convex.mutation(api.expenses.add, {
-      ...data,
-      createdAt: ts,
-      updatedAt: ts,
-    });
-    const expense: Expense = { ...data, id: id as string, createdAt: ts, updatedAt: ts, synced: true };
-    expenses.value.unshift(expense);
-    return expense;
+    try {
+      const id = await convex.mutation(api.expenses.add, {
+        ...data,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+      const expense: Expense = {
+        ...data,
+        id: id as string,
+        createdAt: ts,
+        updatedAt: ts,
+        synced: true,
+      };
+      expenses.value.unshift(expense);
+      return expense;
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't save your expense.");
+    }
   }
 
   async function updateExpense(id: string, updates: Partial<Expense>) {
     const updatedAt = now();
     // Exclude local-only fields that are not part of the Convex mutation args
     const { id: _id, synced: _s, createdAt: _c, userId: _u, ...mutableFields } = updates as Record<string, unknown>;
-    await convex.mutation(api.expenses.update, {
-      id: id as unknown as Id<'expenses'>,
-      ...mutableFields,
-      updatedAt,
-    });
-    const idx = expenses.value.findIndex((e) => e.id === id);
-    if (idx !== -1) {
-      expenses.value[idx] = { ...expenses.value[idx], ...updates, updatedAt };
+    try {
+      await convex.mutation(api.expenses.update, {
+        id: id as unknown as Id<'expenses'>,
+        ...mutableFields,
+        updatedAt,
+      });
+      const idx = expenses.value.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        expenses.value[idx] = { ...expenses.value[idx], ...updates, updatedAt };
+      }
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't update that expense.");
     }
   }
 
   async function deleteExpense(id: string) {
-    await convex.mutation(api.expenses.remove, { id: id as Id<'expenses'> });
-    expenses.value = expenses.value.filter((e) => e.id !== id);
+    try {
+      await convex.mutation(api.expenses.remove, { id: id as Id<'expenses'> });
+      expenses.value = expenses.value.filter((e) => e.id !== id);
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't delete that expense.");
+    }
   }
 
   // Migrate local IndexedDB expenses to Convex on first sign-in
   async function migrateFromLocal(localExpenses: Expense[]) {
     if (localExpenses.length === 0) return;
-    await convex.mutation(api.expenses.bulkAdd, {
-      expenses: localExpenses.map(({ id: _id, synced: _s, ...rest }) => rest),
-    });
-    await fetchExpenses();
+    try {
+      await convex.mutation(api.expenses.bulkAdd, {
+        expenses: localExpenses.map(({ id: _id, synced: _s, ...rest }) => rest),
+      });
+      await fetchExpenses();
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't migrate your local expenses to the cloud.");
+    }
   }
 
   function getExpenseById(id: string): Expense | undefined {

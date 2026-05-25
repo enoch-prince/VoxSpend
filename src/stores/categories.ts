@@ -8,6 +8,7 @@ import { convex, api } from '@/services/convexClient';
 import { now } from '@/services/database';
 import type { Category } from '@/types';
 import { DEFAULT_CATEGORIES } from '@/types';
+import { toFriendlyError } from '@/utils/errors';
 import type { Id } from '../../convex/_generated/dataModel';
 
 type ConvexCategory = Omit<Category, 'id'> & {
@@ -54,6 +55,8 @@ export const useCategoriesStore = defineStore('categories', () => {
         const seeded = await convex.query(api.categories.list);
         categories.value = (seeded as ConvexCategory[]).map(fromConvex);
       }
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't load your categories.");
     } finally {
       loading.value = false;
     }
@@ -61,44 +64,60 @@ export const useCategoriesStore = defineStore('categories', () => {
 
   async function addCategory(name: string, icon: string, color: string) {
     const createdAt = now();
-    const id = await convex.mutation(api.categories.add, {
-      name,
-      icon,
-      color,
-      isCustom: true,
-      createdAt,
-    });
-    categories.value.push({ id: id as string, name, icon, color, isCustom: true, createdAt });
+    try {
+      const id = await convex.mutation(api.categories.add, {
+        name,
+        icon,
+        color,
+        isCustom: true,
+        createdAt,
+      });
+      categories.value.push({ id: id as string, name, icon, color, isCustom: true, createdAt });
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't add that category.");
+    }
   }
 
   async function updateCategory(id: string, updates: Partial<Category>) {
     // Exclude local-only fields that are not part of the Convex mutation args
     const { id: _id, createdAt: _c, isCustom: _ic, userId: _u, ...mutableFields } = updates as Record<string, unknown>;
-    await convex.mutation(api.categories.update, {
-      id: id as unknown as Id<'categories'>,
-      ...mutableFields,
-    });
-    const idx = categories.value.findIndex((c) => c.id === id);
-    if (idx !== -1) {
-      categories.value[idx] = { ...categories.value[idx], ...updates };
+    try {
+      await convex.mutation(api.categories.update, {
+        id: id as unknown as Id<'categories'>,
+        ...mutableFields,
+      });
+      const idx = categories.value.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        categories.value[idx] = { ...categories.value[idx], ...updates };
+      }
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't update that category.");
     }
   }
 
   async function deleteCategory(id: string) {
     const cat = categories.value.find((c) => c.id === id);
     if (cat && !cat.isCustom) return;
-    await convex.mutation(api.categories.remove, { id: id as Id<'categories'> });
-    categories.value = categories.value.filter((c) => c.id !== id);
+    try {
+      await convex.mutation(api.categories.remove, { id: id as Id<'categories'> });
+      categories.value = categories.value.filter((c) => c.id !== id);
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't delete that category.");
+    }
   }
 
   // Migrate custom categories from local IndexedDB to Convex on first sign-in
   async function migrateFromLocal(localCategories: Category[]) {
     const customs = localCategories.filter((c) => c.isCustom);
     if (customs.length === 0) return;
-    await convex.mutation(api.categories.bulkAdd, {
-      categories: customs.map(({ id: _id, ...rest }) => rest),
-    });
-    await initialize();
+    try {
+      await convex.mutation(api.categories.bulkAdd, {
+        categories: customs.map(({ id: _id, ...rest }) => rest),
+      });
+      await initialize();
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't migrate your custom categories to the cloud.");
+    }
   }
 
   function getCategoryByName(name: string): Category | undefined {
