@@ -2,10 +2,6 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { getAuthUserId } from '@convex-dev/auth/server';
 
-function requireAuth(ctx: { auth: { getUserIdentity: () => Promise<unknown> } }) {
-  return getAuthUserId(ctx as Parameters<typeof getAuthUserId>[0]);
-}
-
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -19,8 +15,12 @@ export const list = query({
   },
 });
 
-export const add = mutation({
+// Idempotent create. `clientId` is a per-row UUID generated on the client;
+// if a retry hits the server after the original already succeeded, we
+// return the existing _id instead of inserting a duplicate.
+export const upsert = mutation({
   args: {
+    clientId: v.string(),
     amount: v.number(),
     currency: v.string(),
     type: v.union(v.literal('expense'), v.literal('income')),
@@ -35,13 +35,21 @@ export const add = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthorized');
+    const existing = await ctx.db
+      .query('expenses')
+      .withIndex('by_user_and_client', (q) =>
+        q.eq('userId', userId).eq('clientId', args.clientId),
+      )
+      .unique();
+    if (existing) return existing._id;
     return await ctx.db.insert('expenses', { ...args, userId });
   },
 });
 
+// Update by clientId so the queue never needs to remember the server _id.
 export const update = mutation({
   args: {
-    id: v.id('expenses'),
+    clientId: v.string(),
     amount: v.optional(v.number()),
     currency: v.optional(v.string()),
     type: v.optional(v.union(v.literal('expense'), v.literal('income'))),
@@ -52,49 +60,28 @@ export const update = mutation({
     momoAccountId: v.optional(v.string()),
     updatedAt: v.string(),
   },
-  handler: async (ctx, { id, ...fields }) => {
+  handler: async (ctx, { clientId, ...fields }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthorized');
-    const existing = await ctx.db.get(id);
-    if (!existing || existing.userId !== userId) throw new Error('Not found');
-    await ctx.db.patch(id, fields);
+    const existing = await ctx.db
+      .query('expenses')
+      .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
+      .unique();
+    if (!existing) return; // already deleted on another device, or never made it — drop silently
+    await ctx.db.patch(existing._id, fields);
   },
 });
 
 export const remove = mutation({
-  args: { id: v.id('expenses') },
-  handler: async (ctx, { id }) => {
+  args: { clientId: v.string() },
+  handler: async (ctx, { clientId }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthorized');
-    const existing = await ctx.db.get(id);
-    if (!existing || existing.userId !== userId) throw new Error('Not found');
-    await ctx.db.delete(id);
-  },
-});
-
-// Bulk-insert for migrating existing local IndexedDB data on first sign-in
-export const bulkAdd = mutation({
-  args: {
-    expenses: v.array(
-      v.object({
-        amount: v.number(),
-        currency: v.string(),
-        type: v.union(v.literal('expense'), v.literal('income')),
-        category: v.string(),
-        merchant: v.string(),
-        note: v.string(),
-        date: v.string(),
-        momoAccountId: v.optional(v.string()),
-        createdAt: v.string(),
-        updatedAt: v.string(),
-      })
-    ),
-  },
-  handler: async (ctx, { expenses }) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error('Unauthorized');
-    for (const expense of expenses) {
-      await ctx.db.insert('expenses', { ...expense, userId });
-    }
+    const existing = await ctx.db
+      .query('expenses')
+      .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
+      .unique();
+    if (!existing) return; // already gone — idempotent delete
+    await ctx.db.delete(existing._id);
   },
 });

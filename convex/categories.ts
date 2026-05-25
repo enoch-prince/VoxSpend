@@ -14,8 +14,10 @@ export const list = query({
   },
 });
 
-export const add = mutation({
+// Idempotent create — see expenses.upsert for the rationale.
+export const upsert = mutation({
   args: {
+    clientId: v.string(),
     name: v.string(),
     icon: v.string(),
     color: v.string(),
@@ -25,56 +27,47 @@ export const add = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthorized');
+    const existing = await ctx.db
+      .query('categories')
+      .withIndex('by_user_and_client', (q) =>
+        q.eq('userId', userId).eq('clientId', args.clientId),
+      )
+      .unique();
+    if (existing) return existing._id;
     return await ctx.db.insert('categories', { ...args, userId });
   },
 });
 
 export const update = mutation({
   args: {
-    id: v.id('categories'),
+    clientId: v.string(),
     name: v.optional(v.string()),
     icon: v.optional(v.string()),
     color: v.optional(v.string()),
   },
-  handler: async (ctx, { id, ...fields }) => {
+  handler: async (ctx, { clientId, ...fields }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthorized');
-    const existing = await ctx.db.get(id);
-    if (!existing || existing.userId !== userId) throw new Error('Not found');
-    await ctx.db.patch(id, fields);
+    const existing = await ctx.db
+      .query('categories')
+      .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
+      .unique();
+    if (!existing) return;
+    await ctx.db.patch(existing._id, fields);
   },
 });
 
 export const remove = mutation({
-  args: { id: v.id('categories') },
-  handler: async (ctx, { id }) => {
+  args: { clientId: v.string() },
+  handler: async (ctx, { clientId }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthorized');
-    const existing = await ctx.db.get(id);
-    if (!existing || existing.userId !== userId) throw new Error('Not found');
+    const existing = await ctx.db
+      .query('categories')
+      .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
+      .unique();
+    if (!existing) return;
     if (!existing.isCustom) throw new Error('Cannot delete default categories');
-    await ctx.db.delete(id);
-  },
-});
-
-// Bulk-insert defaults (or migrate from local IndexedDB) on first sign-in
-export const bulkAdd = mutation({
-  args: {
-    categories: v.array(
-      v.object({
-        name: v.string(),
-        icon: v.string(),
-        color: v.string(),
-        isCustom: v.boolean(),
-        createdAt: v.string(),
-      })
-    ),
-  },
-  handler: async (ctx, { categories }) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error('Unauthorized');
-    for (const cat of categories) {
-      await ctx.db.insert('categories', { ...cat, userId });
-    }
+    await ctx.db.delete(existing._id);
   },
 });
