@@ -1,20 +1,30 @@
 <template>
   <div class="app-shell" :class="{ 'has-nav': showNav }">
-    <!-- Offline banner -->
+    <!-- Offline / sync banner -->
     <transition name="page">
       <div v-if="!isOnline" class="offline-banner">
-        <span class="material-symbols-rounded icon-sm">cloud_off</span>
-        You're offline — expenses are saved locally
+        <div class="flex items-center justify-center gap-sm">
+          <span class="material-symbols-rounded icon-sm">cloud_off</span>
+          <p>
+            You're offline —
+            <template v-if="totalPending > 0">
+              {{ totalPending }} change{{ totalPending === 1 ? '' : 's' }} will sync when you reconnect
+            </template>
+            <template v-else>changes are saved locally</template>
+          </p>
+        </div>
       </div>
       <div
-        v-else-if="voiceStore.pendingCount > 0"
+        v-else-if="isSyncing"
         class="offline-banner"
         style="background: var(--primary); color: white"
       >
         <div class="flex items-center justify-center gap-sm">
-        <span class="text-secondary material-symbols-rounded icon-sm spin-animation">sync</span>
-        <p class="text-secondary">Syncing {{ voiceStore.pendingCount }} voice note(s)...</p>
-          </div>
+          <span class="text-secondary material-symbols-rounded icon-sm spin-animation">sync</span>
+          <p class="text-secondary">
+            Syncing {{ totalPending }} change{{ totalPending === 1 ? '' : 's' }}…
+          </p>
+        </div>
       </div>
     </transition>
 
@@ -51,7 +61,12 @@
   import { useExpensesStore } from '@/stores/expenses';
   import { useMomoStore } from '@/stores/momo';
   import { useVoiceStore } from '@/stores/voice';
-  import { db } from '@/services/database';
+  import {
+    pendingCount as syncPendingCount,
+    isDraining as syncIsDraining,
+    drain as syncDrain,
+    startSyncListeners,
+  } from '@/services/syncEngine';
   import BottomNav from '@/components/BottomNav.vue';
   import VoiceInputModal from '@/components/VoiceInputModal.vue';
   import ManualInputModal from '@/components/ManualInputModal.vue';
@@ -73,7 +88,10 @@
   });
 
   watch(isOnline, (online) => {
-    if (online) voiceStore.syncPendingNotes();
+    if (online) {
+      voiceStore.syncPendingNotes();
+      void syncDrain();
+    }
   });
 
   const { updateServiceWorker } = useRegisterSW({
@@ -86,35 +104,40 @@
   });
 
   const showNav = computed(() => !route.meta.hideNav);
+  // Surface combined pending state to the offline banner.
+  const totalPending = computed(() => syncPendingCount.value + voiceStore.pendingCount);
+  const isSyncing = computed(() => syncIsDraining.value || totalPending.value > 0);
 
-  // Hoists local IndexedDB data into Convex on first cloud sign-in, then
-  // hydrates all stores. Idempotent — safe to call repeatedly.
-  // Why a function (not just onMounted): App.vue is the root component, so it
-  // mounts before the user signs up. Without a watcher trigger, sign-ups that
-  // happen during the same session never migrate their local data — users see
-  // an empty cloud account and assume their expenses are gone.
+  // Local-first hydration:
+  // 1. Resolve the user's _id (online query; falls back to cached value).
+  // 2. Attribute any legacy rows from the pre-sync-layer schema to this user
+  //    and enqueue them for upload. One-shot per browser.
+  // 3. Hydrate every store from Dexie (instant) — they kick off background
+  //    server reconciles themselves.
+  // 4. Drain the sync queue.
   async function initializeUserData() {
-    const migrationDone = localStorage.getItem('voxspend-migrated');
-    if (!migrationDone) {
-      const [localExpenses, localCategories] = await Promise.all([
-        db.expenses.toArray(),
-        db.categories.toArray(),
-      ]);
-      if (localExpenses.length > 0 || localCategories.filter((c) => c.isCustom).length > 0) {
-        await categoriesStore.migrateFromLocal(localCategories);
-        await expensesStore.migrateFromLocal(localExpenses);
-        await db.expenses.clear();
-        await db.categories.clear();
-      }
-      localStorage.setItem('voxspend-migrated', '1');
+    await authStore.resolveUserId();
+    if (!authStore.currentUserId) return; // offline + never signed in here before
+
+    const attributed = localStorage.getItem('voxspend-attributed');
+    if (!attributed) {
+      await expensesStore.attributeLegacyRows();
+      await categoriesStore.attributeLegacyRows();
+      await momoStore.attributeLegacyRows();
+      localStorage.setItem('voxspend-attributed', '1');
     }
 
-    await categoriesStore.initialize();
-    await expensesStore.fetchExpenses();
-    await momoStore.fetchAccounts();
+    await Promise.all([
+      categoriesStore.hydrate(),
+      expensesStore.hydrate(),
+      momoStore.hydrate(),
+    ]);
 
     await voiceStore.updatePendingCount();
-    if (isOnline.value) voiceStore.syncPendingNotes();
+    if (isOnline.value) {
+      voiceStore.syncPendingNotes();
+      void syncDrain();
+    }
   }
 
   // Fires for both cases: refresh while signed in (initialize() restores token)
@@ -128,6 +151,7 @@
 
   onMounted(() => {
     authStore.initialize();
+    startSyncListeners();
   });
 </script>
 
