@@ -20,7 +20,7 @@ type ConvexCategory = {
   _id: string;
   _creationTime: number;
   userId: string;
-  clientId: string;
+  clientId?: string;
   name: string;
   icon: string;
   color: string;
@@ -112,6 +112,8 @@ export const useCategoriesStore = defineStore('categories', () => {
     for (const row of localRows) localByClientId.set(row.clientId, row);
 
     for (const doc of serverDocs) {
+      // Skip legacy rows without clientId — see expenses.reconcileFromServer.
+      if (!doc.clientId) continue;
       const local = localByClientId.get(doc.clientId);
       if (!local) {
         await db.categories.add({

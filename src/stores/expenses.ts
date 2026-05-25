@@ -22,7 +22,7 @@ type ConvexExpense = {
   _id: string;
   _creationTime: number;
   userId: string;
-  clientId: string;
+  clientId?: string;
   amount: number;
   currency: string;
   type: 'expense' | 'income';
@@ -166,6 +166,11 @@ export const useExpensesStore = defineStore('expenses', () => {
     for (const row of localRows) localByClientId.set(row.clientId, row);
 
     for (const doc of serverDocs) {
+      // Defensive: server rows without clientId are legacy data that hasn't
+      // been backfilled yet. Skip them so reconcile doesn't import them as
+      // unkeyed duplicates. Run `npx convex run migrations:backfillClientIds`
+      // to assign clientIds; the next reconcile will pick them up.
+      if (!doc.clientId) continue;
       const local = localByClientId.get(doc.clientId);
       if (!local) {
         // New row from another device — insert.

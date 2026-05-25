@@ -18,7 +18,7 @@ type ConvexMomo = {
   _id: string;
   _creationTime: number;
   userId: string;
-  clientId: string;
+  clientId?: string;
   provider: MomoProvider;
   phoneNumber: string;
   nickname: string;
@@ -59,6 +59,8 @@ export const useMomoStore = defineStore('momo', () => {
     for (const row of localRows) localByClientId.set(row.clientId, row);
 
     for (const doc of serverDocs) {
+      // Skip legacy rows without clientId — see expenses.reconcileFromServer.
+      if (!doc.clientId) continue;
       const local = localByClientId.get(doc.clientId);
       if (!local) {
         await db.momoAccounts.add({
