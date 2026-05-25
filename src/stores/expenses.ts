@@ -1,44 +1,49 @@
 // ============================================
-// Expenses Store — Convex-backed
+// Expenses Store — Local-first (Dexie + sync queue)
 // ============================================
+//
+// Reads: always from Dexie, scoped by currentUserId. Loads are instant.
+// Writes: optimistic — patch Dexie + enqueue, then update store state.
+//         The syncEngine drains the queue when online.
+// Reconcile: pulls fresh server rows into Dexie on hydrate. Local rows
+//            with `synced === false` win over server (unsaved edits).
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { convex, api } from '@/services/convexClient';
-import { now } from '@/services/database';
+import { db, generateId, generateClientId, now } from '@/services/database';
+import { enqueue, drain } from '@/services/syncEngine';
+import { useAuthStore } from './auth';
 import { toFriendlyError } from '@/utils/errors';
 import type { Expense, CategoryBreakdown, DayGroup } from '@/types';
 import { useCategoriesStore } from './categories';
-import type { Id } from '../../convex/_generated/dataModel';
 
-// Convex stores _id (Id<"expenses">) as the primary key.
-// We expose it as `id` on the local Expense type for compatibility.
-type ConvexExpense = Omit<Expense, 'id' | 'synced'> & {
-  _id: Id<'expenses'>;
+type ConvexExpense = {
+  _id: string;
   _creationTime: number;
-  userId: Id<'users'>;
+  userId: string;
+  clientId: string;
+  amount: number;
+  currency: string;
+  type: 'expense' | 'income';
+  category: string;
+  merchant: string;
+  note: string;
+  date: string;
+  momoAccountId?: string;
+  createdAt: string;
+  updatedAt: string;
 };
-
-function fromConvex(doc: ConvexExpense): Expense {
-  return {
-    id: doc._id,
-    amount: doc.amount,
-    currency: doc.currency,
-    type: doc.type,
-    category: doc.category,
-    merchant: doc.merchant,
-    note: doc.note,
-    date: doc.date,
-    momoAccountId: doc.momoAccountId,
-    createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt,
-    synced: true,
-  };
-}
 
 export const useExpensesStore = defineStore('expenses', () => {
   const expenses = ref<Expense[]>([]);
   const loading = ref(false);
+
+  function currentUserId(): string {
+    const id = useAuthStore().currentUserId;
+    if (!id) throw new Error('No signed-in user');
+    return id;
+  }
 
   // ---- Computed (unchanged) ----
   const totalExpenses = computed(() =>
@@ -123,54 +128,167 @@ export const useExpensesStore = defineStore('expenses', () => {
       .slice(0, 5),
   );
 
-  // ---- Actions ----
-  async function fetchExpenses() {
+  // ---- Lifecycle ----
+
+  /**
+   * Two-step hydrate: instant Dexie read first, then background server
+   * reconcile if online. Never throws on network failure — local data is
+   * always available.
+   */
+  async function hydrate() {
     loading.value = true;
     try {
-      const docs = await convex.query(api.expenses.list);
-      expenses.value = (docs as ConvexExpense[]).map(fromConvex);
-    } catch (err) {
-      throw toFriendlyError(err, "Couldn't load your expenses.");
+      const userId = currentUserId();
+      expenses.value = await db.expenses.where('userId').equals(userId).reverse().sortBy('date');
+      if (navigator.onLine) {
+        // Don't block UI on the reconcile.
+        void reconcileFromServer().catch(() => {
+          /* swallow — local data still serves */
+        });
+      }
     } finally {
       loading.value = false;
     }
   }
 
-  async function addExpense(data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) {
+  /**
+   * Pull fresh server rows into Dexie. Local rows with `synced === false`
+   * are preserved (last-write-wins by updatedAt for synced rows).
+   */
+  async function reconcileFromServer() {
+    const userId = currentUserId();
+    const serverDocs = (await convex.query(api.expenses.list)) as ConvexExpense[];
+
+    // Index local rows by clientId for quick lookup. clientId is the
+    // stable cross-device identifier; serverId fills in after first sync.
+    const localByClientId = new Map<string, Expense>();
+    const localRows = await db.expenses.where('userId').equals(userId).toArray();
+    for (const row of localRows) localByClientId.set(row.clientId, row);
+
+    for (const doc of serverDocs) {
+      const local = localByClientId.get(doc.clientId);
+      if (!local) {
+        // New row from another device — insert.
+        await db.expenses.add({
+          id: generateId(),
+          serverId: doc._id,
+          userId,
+          synced: true,
+          clientId: doc.clientId,
+          amount: doc.amount,
+          currency: doc.currency,
+          type: doc.type,
+          category: doc.category,
+          merchant: doc.merchant,
+          note: doc.note,
+          date: doc.date,
+          momoAccountId: doc.momoAccountId,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt,
+        });
+        continue;
+      }
+      if (!local.synced) continue; // local edits win
+      // Last-write-wins by updatedAt.
+      if (new Date(doc.updatedAt).getTime() > new Date(local.updatedAt).getTime()) {
+        await db.expenses.update(local.id, {
+          serverId: doc._id,
+          amount: doc.amount,
+          currency: doc.currency,
+          type: doc.type,
+          category: doc.category,
+          merchant: doc.merchant,
+          note: doc.note,
+          date: doc.date,
+          momoAccountId: doc.momoAccountId,
+          updatedAt: doc.updatedAt,
+          synced: true,
+        });
+      } else if (!local.serverId) {
+        // Same updatedAt but server has an _id we didn't know about.
+        await db.expenses.update(local.id, { serverId: doc._id });
+      }
+    }
+
+    // NOTE: cross-device deletes (server has fewer rows than local synced
+    // set) are not handled in MVP. Tombstones are a follow-up.
+
+    expenses.value = await db.expenses.where('userId').equals(userId).reverse().sortBy('date');
+  }
+
+  // ---- Actions (optimistic + enqueue) ----
+
+  async function addExpense(
+    data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'userId' | 'clientId' | 'serverId'>,
+  ) {
+    const userId = currentUserId();
     const ts = now();
+    const row: Expense = {
+      ...data,
+      id: generateId(),
+      clientId: generateClientId(),
+      userId,
+      synced: false,
+      createdAt: ts,
+      updatedAt: ts,
+    };
     try {
-      const id = await convex.mutation(api.expenses.add, {
-        ...data,
-        createdAt: ts,
-        updatedAt: ts,
+      await db.expenses.add(row);
+      await enqueue({
+        userId,
+        table: 'expenses',
+        action: 'create',
+        entityId: row.id,
+        clientId: row.clientId,
+        payload: {
+          amount: row.amount,
+          currency: row.currency,
+          type: row.type,
+          category: row.category,
+          merchant: row.merchant,
+          note: row.note,
+          date: row.date,
+          momoAccountId: row.momoAccountId,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        },
       });
-      const expense: Expense = {
-        ...data,
-        id: id as string,
-        createdAt: ts,
-        updatedAt: ts,
-        synced: true,
-      };
-      expenses.value.unshift(expense);
-      return expense;
+      expenses.value.unshift(row);
+      return row;
     } catch (err) {
       throw toFriendlyError(err, "Couldn't save your expense.");
     }
   }
 
   async function updateExpense(id: string, updates: Partial<Expense>) {
+    const userId = currentUserId();
     const updatedAt = now();
-    // Exclude local-only fields that are not part of the Convex mutation args
-    const { id: _id, synced: _s, createdAt: _c, userId: _u, ...mutableFields } = updates as Record<string, unknown>;
+    // Strip fields the sync layer manages so they can't be clobbered.
+    const {
+      id: _id,
+      synced: _s,
+      createdAt: _c,
+      userId: _u,
+      clientId: _cid,
+      serverId: _sid,
+      ...mutable
+    } = updates as Record<string, unknown>;
     try {
-      await convex.mutation(api.expenses.update, {
-        id: id as unknown as Id<'expenses'>,
-        ...mutableFields,
-        updatedAt,
+      const existing = await db.expenses.get(id);
+      if (!existing) throw new Error('That expense no longer exists.');
+      await db.expenses.update(id, { ...mutable, updatedAt, synced: false });
+      await enqueue({
+        userId,
+        table: 'expenses',
+        action: 'update',
+        entityId: id,
+        clientId: existing.clientId,
+        serverId: existing.serverId,
+        payload: { ...mutable, updatedAt },
       });
       const idx = expenses.value.findIndex((e) => e.id === id);
       if (idx !== -1) {
-        expenses.value[idx] = { ...expenses.value[idx], ...updates, updatedAt };
+        expenses.value[idx] = { ...expenses.value[idx], ...mutable, updatedAt, synced: false };
       }
     } catch (err) {
       throw toFriendlyError(err, "Couldn't update that expense.");
@@ -178,25 +296,61 @@ export const useExpensesStore = defineStore('expenses', () => {
   }
 
   async function deleteExpense(id: string) {
+    const userId = currentUserId();
     try {
-      await convex.mutation(api.expenses.remove, { id: id as Id<'expenses'> });
+      const existing = await db.expenses.get(id);
+      if (!existing) {
+        expenses.value = expenses.value.filter((e) => e.id !== id);
+        return;
+      }
+      await db.expenses.delete(id);
+      await enqueue({
+        userId,
+        table: 'expenses',
+        action: 'delete',
+        entityId: id,
+        clientId: existing.clientId,
+        serverId: existing.serverId,
+        payload: {},
+      });
       expenses.value = expenses.value.filter((e) => e.id !== id);
     } catch (err) {
       throw toFriendlyError(err, "Couldn't delete that expense.");
     }
   }
 
-  // Migrate local IndexedDB expenses to Convex on first sign-in
-  async function migrateFromLocal(localExpenses: Expense[]) {
-    if (localExpenses.length === 0) return;
-    try {
-      await convex.mutation(api.expenses.bulkAdd, {
-        expenses: localExpenses.map(({ id: _id, synced: _s, ...rest }) => rest),
+  /**
+   * Attribute pre-sync-layer rows (no userId) to the current user and
+   * enqueue them for upload. Called once on first sign-in from App.vue.
+   */
+  async function attributeLegacyRows() {
+    const userId = currentUserId();
+    const orphans = await db.expenses.where('userId').equals('').toArray();
+    if (orphans.length === 0) return;
+    for (const row of orphans) {
+      const clientId = row.clientId || generateClientId();
+      await db.expenses.update(row.id, { userId, clientId, synced: false });
+      await enqueue({
+        userId,
+        table: 'expenses',
+        action: 'create',
+        entityId: row.id,
+        clientId,
+        payload: {
+          amount: row.amount,
+          currency: row.currency,
+          type: row.type,
+          category: row.category,
+          merchant: row.merchant,
+          note: row.note,
+          date: row.date,
+          momoAccountId: row.momoAccountId,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        },
       });
-      await fetchExpenses();
-    } catch (err) {
-      throw toFriendlyError(err, "Couldn't migrate your local expenses to the cloud.");
     }
+    void drain();
   }
 
   function getExpenseById(id: string): Expense | undefined {
@@ -251,11 +405,12 @@ export const useExpensesStore = defineStore('expenses', () => {
     categoryBreakdown,
     expensesByDate,
     recentExpenses,
-    fetchExpenses,
+    hydrate,
+    reconcileFromServer,
     addExpense,
     updateExpense,
     deleteExpense,
-    migrateFromLocal,
+    attributeLegacyRows,
     getExpenseById,
     getExpensesForMonth,
     exportCSV,
