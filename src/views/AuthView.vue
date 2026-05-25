@@ -7,6 +7,7 @@
           <img src="/icons/icon-192.png" alt="VoxSpend" />
         </div>
         <h1>VoxSpend</h1>
+        <p><i>Track spending with your voice</i></p>
       </div>
 
       <!-- Form -->
