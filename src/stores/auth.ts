@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { convex, api, setConvexToken, clearConvexToken } from '@/services/convexClient';
+import { toFriendlyError } from '@/utils/errors';
 
 const TOKEN_KEY = 'voxspend-auth-token';
 const REFRESH_KEY = 'voxspend-auth-refresh';
@@ -45,28 +46,38 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function signIn(email: string, password: string) {
-    const result = await convex.action(api.auth.signIn, {
-      provider: 'password',
-      params: { email, password, flow: 'signIn' },
-    });
-    const tokens = (result as { tokens?: { token: string; refreshToken: string } }).tokens;
-    if (!tokens?.token) throw new Error('Sign in failed — no token returned.');
-    _storeTokens(tokens.token, tokens.refreshToken ?? null);
+    try {
+      const result = await convex.action(api.auth.signIn, {
+        provider: 'password',
+        params: { email, password, flow: 'signIn' },
+      });
+      const tokens = (result as { tokens?: { token: string; refreshToken: string } }).tokens;
+      if (!tokens?.token) throw new Error('Sign in failed — no token returned.');
+      _storeTokens(tokens.token, tokens.refreshToken ?? null);
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't sign you in. Please try again.");
+    }
   }
 
   async function signUp(email: string, password: string) {
-    const result = await convex.action(api.auth.signIn, {
-      provider: 'password',
-      params: { email, password, flow: 'signUp' },
-    });
-    const tokens = (result as { tokens?: { token: string; refreshToken: string } }).tokens;
-    if (!tokens?.token) throw new Error('Sign up failed — no token returned.');
-    _storeTokens(tokens.token, tokens.refreshToken ?? null);
+    try {
+      const result = await convex.action(api.auth.signIn, {
+        provider: 'password',
+        params: { email, password, flow: 'signUp' },
+      });
+      const tokens = (result as { tokens?: { token: string; refreshToken: string } }).tokens;
+      if (!tokens?.token) throw new Error('Sign up failed — no token returned.');
+      _storeTokens(tokens.token, tokens.refreshToken ?? null);
+    } catch (err) {
+      throw toFriendlyError(err, "Couldn't create your account. Please try again.");
+    }
   }
 
   async function signOut() {
     try {
       await convex.action(api.auth.signOut);
+    } catch {
+      // Sign-out failures shouldn't block local logout
     } finally {
       _clearTokens();
     }
