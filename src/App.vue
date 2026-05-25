@@ -85,12 +85,13 @@
 
   const showNav = computed(() => !route.meta.hideNav);
 
-  onMounted(async () => {
-    authStore.initialize();
-
-    if (!authStore.isAuthenticated) return;
-
-    // Check for local IndexedDB data to migrate (one-time, on first cloud sign-in)
+  // Hoists local IndexedDB data into Convex on first cloud sign-in, then
+  // hydrates all stores. Idempotent — safe to call repeatedly.
+  // Why a function (not just onMounted): App.vue is the root component, so it
+  // mounts before the user signs up. Without a watcher trigger, sign-ups that
+  // happen during the same session never migrate their local data — users see
+  // an empty cloud account and assume their expenses are gone.
+  async function initializeUserData() {
     const migrationDone = localStorage.getItem('voxspend-migrated');
     if (!migrationDone) {
       const [localExpenses, localCategories] = await Promise.all([
@@ -112,6 +113,19 @@
 
     await voiceStore.updatePendingCount();
     if (isOnline.value) voiceStore.syncPendingNotes();
+  }
+
+  // Fires for both cases: refresh while signed in (initialize() restores token)
+  // and live sign-in/sign-up (auth store flips after AuthView submits).
+  watch(
+    () => authStore.isAuthenticated,
+    (isAuth, wasAuth) => {
+      if (isAuth && !wasAuth) void initializeUserData();
+    },
+  );
+
+  onMounted(() => {
+    authStore.initialize();
   });
 </script>
 
