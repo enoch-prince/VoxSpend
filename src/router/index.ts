@@ -72,17 +72,17 @@ const router = createRouter({
 
 // Splash gate — resets on every page load, so the intro slides show as the
 // first screen each time the app opens, regardless of auth or prior visits.
-let introShownThisLoad = false;
+// let introShownThisLoad = false;
 
 router.beforeEach((to) => {
   const token = localStorage.getItem('voxspend-auth-token');
   const isPublicRoute = to.meta.public === true;
 
   // 1. Splash — first navigation of every fresh load goes through the intro
-  if (!introShownThisLoad) {
-    introShownThisLoad = true;
-    if (to.name !== 'onboarding') return { name: 'onboarding' };
-  }
+  // if (!introShownThisLoad) {
+  //   introShownThisLoad = true;
+  //   if (to.name !== 'onboarding') return { name: 'onboarding' };
+  // }
 
   // 2. Already signed in — don't show /auth again
   if (token && to.name === 'auth') {
