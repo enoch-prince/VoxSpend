@@ -1,13 +1,15 @@
 import { mutation, internalQuery } from './_generated/server';
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 export const getActiveSubscriptions = internalQuery({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query('pushSubscriptions')
-      .filter((q) => q.eq(q.field('enabled'), true))
-      .collect();
+      .withIndex('by_enabled', (q) => q.eq('enabled', true))
+      .order('asc')
+      .paginate(args.paginationOpts);
   },
 });
 

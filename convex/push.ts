@@ -1,5 +1,5 @@
 'use node';
-import { internalAction, internalQuery } from './_generated/server';
+import { internalAction } from './_generated/server';
 import { internal } from './_generated/api';
 import webPush from 'web-push';
 
@@ -19,27 +19,36 @@ export const sendReminders = internalAction({
       return;
     }
 
-    const subs = await ctx.runQuery(internal.subscriptions.getActiveSubscriptions);
-
+    const pageSize = 100;
+    let cursor: string | null = null;
     const notificationPayload = JSON.stringify({
       title: 'Expense Reminder',
       body: 'Did you spend anything today? Keep your budget accurate by logging it now!',
       url: '/',
     });
 
-    for (const sub of subs) {
-      try {
-        await webPush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: sub.keys,
-          },
-          notificationPayload
-        );
-      } catch (error: any) {
-        console.error('Error sending push to', sub.endpoint, error);
-        // Typically, if status is 410 (Gone), the subscription is expired/unsubscribed
+    do {
+      const result = await ctx.runQuery(internal.subscriptions.getActiveSubscriptions, {
+        paginationOpts: { numItems: pageSize, cursor },
+      });
+
+      const subs = result.page;
+      cursor = result.continueCursor;
+
+      for (const sub of subs) {
+        try {
+          await webPush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: sub.keys,
+            },
+            notificationPayload
+          );
+        } catch (error: any) {
+          console.error('Error sending push to', sub.endpoint, error);
+          // Typically, if status is 410 (Gone), the subscription is expired/unsubscribed
+        }
       }
-    }
+    } while (cursor);
   },
 });

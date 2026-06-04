@@ -68,5 +68,7 @@ export default defineSchema({
       auth: v.string(),
     }),
     enabled: v.boolean(),
-  }).index('by_endpoint', ['endpoint']),
+  })
+    .index('by_endpoint', ['endpoint'])
+    .index('by_enabled', ['enabled']),
 });
