@@ -9,12 +9,10 @@ import { toFriendlyError } from '@/utils/errors';
 import { setSyncUser } from '@/services/syncEngine';
 
 const TOKEN_KEY = 'voxspend-auth-token';
-const REFRESH_KEY = 'voxspend-auth-refresh';
 const USER_ID_KEY = 'voxspend-current-user-id';
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(null);
-  const refreshToken = ref<string | null>(null);
   // The Convex `users._id` of the signed-in user. Persisted to localStorage
   // so Dexie queries can scope by userId offline (the `me` query needs network).
   const currentUserId = ref<string | null>(null);
@@ -25,11 +23,9 @@ export const useAuthStore = defineStore('auth', () => {
   // Load token from localStorage and activate it on the Convex client.
   function initialize() {
     const stored = localStorage.getItem(TOKEN_KEY);
-    const storedRefresh = localStorage.getItem(REFRESH_KEY);
     const storedUserId = localStorage.getItem(USER_ID_KEY);
     if (stored) {
       token.value = stored;
-      refreshToken.value = storedRefresh;
       currentUserId.value = storedUserId;
       setConvexToken(stored);
       setSyncUser(storedUserId);
@@ -37,20 +33,16 @@ export const useAuthStore = defineStore('auth', () => {
     isInitialized.value = true;
   }
 
-  function _storeTokens(t: string, rt: string | null) {
+  function _storeTokens(t: string) {
     token.value = t;
-    refreshToken.value = rt;
     localStorage.setItem(TOKEN_KEY, t);
-    if (rt) localStorage.setItem(REFRESH_KEY, rt);
     setConvexToken(t);
   }
 
   function _clearTokens() {
     token.value = null;
-    refreshToken.value = null;
     currentUserId.value = null;
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_ID_KEY);
     clearConvexToken();
     setSyncUser(null);
@@ -65,9 +57,12 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return null;
     try {
       const id = (await convex.query(api.auth.me)) as string | null;
+      if (!id) {
+        _clearTokens();
+        return null;
+      }
       currentUserId.value = id;
-      if (id) localStorage.setItem(USER_ID_KEY, id);
-      else localStorage.removeItem(USER_ID_KEY);
+      localStorage.setItem(USER_ID_KEY, id);
       setSyncUser(id);
       return id;
     } catch {
@@ -82,9 +77,9 @@ export const useAuthStore = defineStore('auth', () => {
         provider: 'password',
         params: { email, password, flow: 'signIn' },
       });
-      const tokens = (result as { tokens?: { token: string; refreshToken: string } }).tokens;
+      const tokens = (result as { tokens?: { token: string } }).tokens;
       if (!tokens?.token) throw new Error('Sign in failed — no token returned.');
-      _storeTokens(tokens.token, tokens.refreshToken ?? null);
+      _storeTokens(tokens.token);
     } catch (err) {
       throw toFriendlyError(err, "Couldn't sign you in. Please try again.");
     }
@@ -96,9 +91,9 @@ export const useAuthStore = defineStore('auth', () => {
         provider: 'password',
         params: { email, password, flow: 'signUp' },
       });
-      const tokens = (result as { tokens?: { token: string; refreshToken: string } }).tokens;
+      const tokens = (result as { tokens?: { token: string } }).tokens;
       if (!tokens?.token) throw new Error('Sign up failed — no token returned.');
-      _storeTokens(tokens.token, tokens.refreshToken ?? null);
+      _storeTokens(tokens.token);
     } catch (err) {
       throw toFriendlyError(err, "Couldn't create your account. Please try again.");
     }
