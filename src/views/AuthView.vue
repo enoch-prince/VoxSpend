@@ -123,10 +123,19 @@
     try {
       if (isSignUp.value) {
         await authStore.signUp(email.value, password.value);
+        await authStore.resolveUserId();
+        await authStore.requestEmailVerification();
+        router.replace({ name: 'verify-email' });
       } else {
         await authStore.signIn(email.value, password.value);
+        await authStore.resolveUserId();
+        await authStore.fetchEmailVerificationStatus();
+        if (authStore.emailVerified) {
+          router.replace('/');
+        } else {
+          router.replace({ name: 'verify-email' });
+        }
       }
-      router.replace('/');
     } catch (err: unknown) {
       error.value =
         err instanceof Error ? err.message : 'Something went wrong. Please try again.';

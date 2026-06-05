@@ -71,4 +71,20 @@ export default defineSchema({
   })
     .index('by_endpoint', ['endpoint'])
     .index('by_enabled', ['enabled']),
+
+  userProfiles: defineTable({
+    userId: v.id('users'),
+    email: v.string(),
+    emailVerified: v.boolean(),
+    createdAt: v.string(),
+  }).index('by_user', ['userId']),
+
+  emailVerifications: defineTable({
+    userId: v.id('users'),
+    email: v.string(),
+    codeHash: v.string(),
+    expiresAt: v.number(),
+    attempts: v.number(),
+    createdAt: v.number(),
+  }).index('by_user', ['userId']),
 });

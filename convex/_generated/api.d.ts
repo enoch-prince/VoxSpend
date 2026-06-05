@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as authHelpers from "../authHelpers.js";
 import type * as categories from "../categories.js";
 import type * as crons from "../crons.js";
 import type * as expenses from "../expenses.js";
@@ -17,6 +18,7 @@ import type * as migrations from "../migrations.js";
 import type * as momoAccounts from "../momoAccounts.js";
 import type * as push from "../push.js";
 import type * as subscriptions from "../subscriptions.js";
+import type * as verification from "../verification.js";
 import type * as voice from "../voice.js";
 
 import type {
@@ -27,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  authHelpers: typeof authHelpers;
   categories: typeof categories;
   crons: typeof crons;
   expenses: typeof expenses;
@@ -35,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   momoAccounts: typeof momoAccounts;
   push: typeof push;
   subscriptions: typeof subscriptions;
+  verification: typeof verification;
   voice: typeof voice;
 }>;
 

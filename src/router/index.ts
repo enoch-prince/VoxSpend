@@ -64,6 +64,12 @@ const router = createRouter({
       meta: { title: 'Setup — VoxSpend', hideNav: true },
     },
     {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: () => import('@/views/VerifyEmailView.vue'),
+      meta: { title: 'Verify Email — VoxSpend', hideNav: true },
+    },
+    {
       path: '/feedback',
       name: 'feedback',
       component: () => import('@/views/FeedbackView.vue'),
@@ -88,12 +94,21 @@ router.beforeEach(async (to) => {
     await authStore.resolveUserId();
   }
 
+  if (
+    authStore.isAuthenticated &&
+    authStore.currentUserId &&
+    authStore.emailVerified === null
+  ) {
+    await authStore.fetchEmailVerificationStatus();
+  }
+
   const isAuthenticated = authStore.isAuthenticated && !!authStore.currentUserId;
+  const isVerified = authStore.emailVerified === true;
   const isPublicRoute = to.meta.public === true;
 
   // 1. Already signed in — don't show /auth again
   if (isAuthenticated && to.name === 'auth') {
-    return { name: 'dashboard' };
+    return { name: isVerified ? 'dashboard' : 'verify-email' };
   }
 
   // 2. Auth check — redirect unauthenticated users to /auth
@@ -101,9 +116,19 @@ router.beforeEach(async (to) => {
     return { name: 'auth' };
   }
 
-  // 3. Setup check — signed in but hasn't configured profile yet
+  // 3. Email verification gate — keep authenticated users on the verify page
+  if (isAuthenticated && !isVerified && to.name !== 'verify-email') {
+    return { name: 'verify-email' };
+  }
+
+  if (isAuthenticated && isVerified && to.name === 'verify-email') {
+    return { name: 'dashboard' };
+  }
+
+  // 4. Setup check — signed in but hasn't configured profile yet
   if (
     isAuthenticated &&
+    isVerified &&
     !isPublicRoute &&
     !userStore.isSetup &&
     to.name !== 'setup'

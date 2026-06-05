@@ -1,12 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { getAuthUserId } from '@convex-dev/auth/server';
+import { requireVerifiedUser } from './authHelpers';
 
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error('Unauthorized');
+    const userId = await requireVerifiedUser(ctx);
     return await ctx.db
       .query('categories')
       .withIndex('by_user', (q) => q.eq('userId', userId))
@@ -25,8 +24,7 @@ export const upsert = mutation({
     createdAt: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error('Unauthorized');
+    const userId = await requireVerifiedUser(ctx);
     const existing = await ctx.db
       .query('categories')
       .withIndex('by_user_and_client', (q) =>
@@ -46,8 +44,7 @@ export const update = mutation({
     color: v.optional(v.string()),
   },
   handler: async (ctx, { clientId, ...fields }) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error('Unauthorized');
+    const userId = await requireVerifiedUser(ctx);
     const existing = await ctx.db
       .query('categories')
       .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
@@ -60,8 +57,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { clientId: v.string() },
   handler: async (ctx, { clientId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error('Unauthorized');
+    const userId = await requireVerifiedUser(ctx);
     const existing = await ctx.db
       .query('categories')
       .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
