@@ -3,6 +3,8 @@
 // ============================================
 
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
+import { useUserStore } from '@/stores/user';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -74,38 +76,39 @@ const router = createRouter({
 // first screen each time the app opens, regardless of auth or prior visits.
 // let introShownThisLoad = false;
 
-router.beforeEach((to) => {
-  const token = localStorage.getItem('voxspend-auth-token');
+router.beforeEach(async (to) => {
+  const authStore = useAuthStore();
+  const userStore = useUserStore();
+
+  if (!authStore.isInitialized) {
+    authStore.initialize();
+  }
+
+  if (authStore.isAuthenticated && !authStore.currentUserId) {
+    await authStore.resolveUserId();
+  }
+
+  const isAuthenticated = authStore.isAuthenticated && !!authStore.currentUserId;
   const isPublicRoute = to.meta.public === true;
 
-  // 1. Splash — first navigation of every fresh load goes through the intro
-  // if (!introShownThisLoad) {
-  //   introShownThisLoad = true;
-  //   if (to.name !== 'onboarding') return { name: 'onboarding' };
-  // }
-
-  // 2. Already signed in — don't show /auth again
-  if (token && to.name === 'auth') {
+  // 1. Already signed in — don't show /auth again
+  if (isAuthenticated && to.name === 'auth') {
     return { name: 'dashboard' };
   }
 
-  // 3. Auth check — redirect unauthenticated users to /auth
-  if (!token && !isPublicRoute) {
+  // 2. Auth check — redirect unauthenticated users to /auth
+  if (!isAuthenticated && !isPublicRoute) {
     return { name: 'auth' };
   }
 
-  // 4. Setup check — signed in but hasn't configured profile yet
-  if (token && !isPublicRoute) {
-    const stored = localStorage.getItem('voxspend-user');
-    let isSetup = false;
-    try {
-      if (stored) isSetup = JSON.parse(stored).onboardingComplete === true;
-    } catch {
-      /* ignore */
-    }
-    if (!isSetup && to.name !== 'setup') {
-      return { name: 'setup' };
-    }
+  // 3. Setup check — signed in but hasn't configured profile yet
+  if (
+    isAuthenticated &&
+    !isPublicRoute &&
+    !userStore.isSetup &&
+    to.name !== 'setup'
+  ) {
+    return { name: 'setup' };
   }
 
   if (to.meta.title) {
