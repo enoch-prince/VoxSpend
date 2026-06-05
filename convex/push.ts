@@ -28,7 +28,10 @@ export const sendReminders = internalAction({
     });
 
     do {
-      const result = await ctx.runQuery(internal.subscriptions.getActiveSubscriptions, {
+      const result: {
+        page: Array<{ endpoint: string; keys: { p256dh: string; auth: string } }>;
+        continueCursor: string | null;
+      } = await ctx.runQuery(internal.subscriptions.getActiveSubscriptions, {
         paginationOpts: { numItems: pageSize, cursor },
       });
 
