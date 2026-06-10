@@ -139,6 +139,10 @@ export const useAuthStore = defineStore('auth', () => {
       await convex.action('verification.requestEmailVerification' as any, {});
       _setVerified(false);
       justSentCode.value = true;
+      // Pull the now-populated profile email so the verify-email subtitle
+      // shows the real address instead of "your email address". Safe: the
+      // helper swallows its own errors and never throws.
+      await fetchEmailVerificationStatus();
     } catch (err) {
       throw toFriendlyError(
         err,
