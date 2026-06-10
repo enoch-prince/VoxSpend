@@ -11,27 +11,31 @@
       </div>
 
       <!-- Form -->
-      <form class="auth-form" @submit.prevent="handleSubmit">
-        <div class="input-wrapper">
+      <form class="auth-form" @submit.prevent="handleSubmit" novalidate>
+        <p v-if="error" class="auth-error" role="alert">
+          <span class="material-symbols-rounded error-icon">error</span>
+          <span>{{ error }}</span>
+        </p>
+
+        <div class="input-wrapper" :class="{ 'has-error': errorField === 'email' || errorField === null && !!error }">
           <span class="material-symbols-rounded field-icon">person</span>
           <input
             v-model="email"
             type="email"
             autocomplete="email"
             placeholder="Email"
-            required
+            @input="clearError"
           />
         </div>
 
-        <div class="input-wrapper">
+        <div class="input-wrapper" :class="{ 'has-error': errorField === 'password' || errorField === null && !!error }">
           <span class="material-symbols-rounded field-icon">lock</span>
           <input
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
-            autocomplete="current-password"
+            :autocomplete="isSignUp ? 'new-password' : 'current-password'"
             placeholder="Password"
-            required
-            minlength="8"
+            @input="clearError"
           />
           <button
             type="button"
@@ -44,8 +48,6 @@
             </span>
           </button>
         </div>
-
-        <p v-if="error" class="auth-error">{{ error }}</p>
 
         <button type="submit" class="btn-login" :disabled="loading">
           <span v-if="loading" class="material-symbols-rounded spin">progress_activity</span>
@@ -97,6 +99,7 @@
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
   import { useAuthStore } from '@/stores/auth';
+  import { FriendlyError, type ErrorField } from '@/utils/errors';
 
   const router = useRouter();
   const authStore = useAuthStore();
@@ -106,28 +109,66 @@
   const password = ref('');
   const showPassword = ref(false);
   const error = ref('');
+  const errorField = ref<ErrorField>(null);
   const loading = ref(false);
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  function setError(message: string, field: ErrorField = null) {
+    error.value = message;
+    errorField.value = field;
+  }
+
+  function clearError() {
+    if (error.value) {
+      error.value = '';
+      errorField.value = null;
+    }
+  }
 
   function toggleMode() {
     isSignUp.value = !isSignUp.value;
-    error.value = '';
+    clearError();
   }
 
   function socialComingSoon() {
-    error.value = 'Social login is coming soon.';
+    setError('Social sign-in is coming soon.');
+  }
+
+  function validate(): boolean {
+    const trimmedEmail = email.value.trim();
+    if (!trimmedEmail) {
+      setError('Please enter your email address.', 'email');
+      return false;
+    }
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError("That email address doesn't look right.", 'email');
+      return false;
+    }
+    if (!password.value) {
+      setError('Please enter your password.', 'password');
+      return false;
+    }
+    if (isSignUp.value && password.value.length < 8) {
+      setError('Password must be at least 8 characters.', 'password');
+      return false;
+    }
+    return true;
   }
 
   async function handleSubmit() {
-    error.value = '';
+    clearError();
+    if (!validate()) return;
+
     loading.value = true;
     try {
       if (isSignUp.value) {
-        await authStore.signUp(email.value, password.value);
+        await authStore.signUp(email.value.trim(), password.value);
         await authStore.resolveUserId();
         await authStore.requestEmailVerification();
         router.replace({ name: 'verify-email' });
       } else {
-        await authStore.signIn(email.value, password.value);
+        await authStore.signIn(email.value.trim(), password.value);
         await authStore.resolveUserId();
         await authStore.fetchEmailVerificationStatus();
         if (authStore.emailVerified) {
@@ -137,8 +178,13 @@
         }
       }
     } catch (err: unknown) {
-      error.value =
-        err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      if (err instanceof FriendlyError) {
+        setError(err.message, err.field);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
     } finally {
       loading.value = false;
     }
@@ -251,6 +297,22 @@
         0 0 0 2px rgba($primary, 0.18);
     }
 
+    &.has-error {
+      box-shadow:
+        var(--neo-inset),
+        0 0 0 1.5px rgba($danger, 0.7);
+
+      .field-icon {
+        color: $danger;
+      }
+
+      &:focus-within {
+        box-shadow:
+          var(--neo-inset),
+          0 0 0 2px rgba($danger, 0.7);
+      }
+    }
+
     .eye-toggle {
       position: absolute;
       right: 0.5rem;
@@ -277,13 +339,28 @@
   }
 
   .auth-error {
+    margin: 0;
     font-size: $font-size-sm;
     color: $danger;
     padding: 0.625rem 0.875rem;
-    background: var(--bg);
-    box-shadow: var(--neo-inset);
+    background: rgba($danger, 0.08);
+    border: 1px solid rgba($danger, 0.25);
     border-radius: $radius-md;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    line-height: 1.35;
+
+    .error-icon {
+      font-size: 1.125rem;
+      flex-shrink: 0;
+    }
+  }
+
+  html[data-theme='dark'] .auth-error {
+    background: rgba($danger, 0.12);
+    border-color: rgba($danger, 0.35);
   }
 
   /* ---- Primary button ---- */
