@@ -43,21 +43,26 @@
         type="button"
         class="btn-resend"
         @click="resendCode"
-        :disabled="resendLoading"
+        :disabled="resendLoading || cooldown > 0"
       >
         <span v-if="resendLoading" class="material-symbols-rounded spin">progress_activity</span>
+        <span v-else-if="cooldown > 0">Resend in {{ cooldown }}s</span>
         <span v-else>Resend code</span>
       </button>
 
       <p class="verify-note">
         If you don't see the email, check your spam folder or request a new code.
       </p>
+
+      <button type="button" class="change-email-link" @click="changeEmail">
+        Wrong email? Use a different one
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useUserStore } from '@/stores/user';
@@ -66,14 +71,40 @@ const router = useRouter();
 const authStore = useAuthStore();
 const userStore = useUserStore();
 
+const RESEND_COOLDOWN_SECONDS = 30;
+
 const code = ref('');
 const error = ref('');
 const message = ref('');
 const loading = ref(false);
 const resendLoading = ref(false);
+const cooldown = ref(0);
+
+let cooldownTimer: ReturnType<typeof setInterval> | null = null;
+
+function startCooldown(seconds = RESEND_COOLDOWN_SECONDS) {
+  cooldown.value = seconds;
+  if (cooldownTimer) clearInterval(cooldownTimer);
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1;
+    if (cooldown.value <= 0 && cooldownTimer) {
+      clearInterval(cooldownTimer);
+      cooldownTimer = null;
+    }
+  }, 1000);
+}
+
+onBeforeUnmount(() => {
+  if (cooldownTimer) clearInterval(cooldownTimer);
+});
 
 function clearError() {
   if (error.value) error.value = '';
+}
+
+async function changeEmail() {
+  await authStore.signOut();
+  await router.replace({ name: 'auth' });
 }
 
 // Show confirmation message if code was just sent
@@ -83,6 +114,7 @@ watch(
     if (just) {
       message.value = 'Verification code sent to your email.';
       authStore.justSentCode = false;
+      startCooldown();
       setTimeout(() => {
         message.value = '';
       }, 4000);
@@ -130,6 +162,7 @@ async function resendCode() {
   try {
     await authStore.resendEmailVerification();
     message.value = 'A new code has been sent to your inbox.';
+    startCooldown();
     setTimeout(() => {
       message.value = '';
     }, 4000);
@@ -152,6 +185,15 @@ onMounted(async () => {
   if (authStore.emailVerified) {
     await navigateAfterVerify();
     return;
+  }
+
+  if (authStore.justSentCode) {
+    message.value = 'Verification code sent to your email.';
+    authStore.justSentCode = false;
+    startCooldown();
+    setTimeout(() => {
+      message.value = '';
+    }, 4000);
   }
 
   await authStore.fetchEmailVerificationStatus();
@@ -302,5 +344,23 @@ html[data-theme='dark'] {
   margin: 0;
   text-align: center;
   color: var(--text-tertiary);
+}
+
+.change-email-link {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: $font-family;
+  font-size: $font-size-sm;
+  cursor: pointer;
+  padding: 0.5rem;
+  align-self: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $primary;
+  }
 }
 </style>
