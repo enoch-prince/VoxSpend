@@ -95,30 +95,37 @@ async function sendEmailWithMailgun(sender: string, recipient: string, body: str
 }
 
 async function sendVerificationEmail(email: string, code: string) {
+  const body = buildEmailBody(code);
   const sender =
     process.env.SENDGRID_FROM || process.env.EMAIL_FROM || process.env.MAIL_FROM;
-  if (!sender) {
-    throw new Error('Email sender address is not configured.');
-  }
-
-  const body = buildEmailBody(code);
 
   if (process.env.SENDGRID_API_KEY) {
+    if (!sender) throw new Error('Email sender address is not configured.');
     return await sendEmailWithSendGrid(sender, email, body);
   }
 
   if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+    if (!sender) throw new Error('Email sender address is not configured.');
     return await sendEmailWithMailgun(sender, email, body);
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.info(`VoxSpend verification code for ${email}: ${code}`);
-    return;
+  // No provider configured. Convex always sets NODE_ENV=production, so we
+  // can't rely on it to decide between dev-log-fallback and prod-throw.
+  // Instead: when nothing is wired up, log the code to Convex logs so dev
+  // works out of the box. Real production deployments MUST configure either
+  // SENDGRID_API_KEY or MAILGUN_API_KEY (+ MAILGUN_DOMAIN), or set
+  // REQUIRE_EMAIL_PROVIDER=true to make this branch throw instead.
+  if (process.env.REQUIRE_EMAIL_PROVIDER === 'true') {
+    throw new Error(
+      'No email provider is configured. Set SENDGRID_API_KEY or MAILGUN_API_KEY in the environment.',
+    );
   }
 
-  throw new Error(
-    'No email provider is configured. Set SENDGRID_API_KEY or MAILGUN_API_KEY in the environment.',
+  console.warn(
+    `[verification] No email provider configured — logging code to Convex logs. ` +
+      `Configure SENDGRID_API_KEY or MAILGUN_API_KEY (and a sender address) before production.`,
   );
+  console.info(`VoxSpend verification code for ${email}: ${code}`);
 }
 
 export const emailVerificationStatus = query({
