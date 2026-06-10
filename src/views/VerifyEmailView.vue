@@ -9,8 +9,17 @@
         </p>
       </div>
 
-      <form class="verify-form" @submit.prevent="submitCode">
-        <div class="input-wrapper">
+      <form class="verify-form" @submit.prevent="submitCode" novalidate>
+        <p v-if="error" class="verify-error" role="alert">
+          <span class="material-symbols-rounded error-icon">error</span>
+          <span>{{ error }}</span>
+        </p>
+        <p v-if="message" class="verify-message" role="status">
+          <span class="material-symbols-rounded success-icon">check_circle</span>
+          <span>{{ message }}</span>
+        </p>
+
+        <div class="input-wrapper" :class="{ 'has-error': !!error }">
           <span class="material-symbols-rounded field-icon">key</span>
           <input
             v-model="code"
@@ -20,12 +29,9 @@
             maxlength="6"
             placeholder="000000"
             autocomplete="one-time-code"
-            required
+            @input="clearError"
           />
         </div>
-
-        <p v-if="error" class="verify-error">{{ error }}</p>
-        <p v-if="message" class="verify-message">{{ message }}</p>
 
         <button type="submit" class="btn-login" :disabled="loading">
           <span v-if="loading" class="material-symbols-rounded spin">progress_activity</span>
@@ -66,12 +72,16 @@ const message = ref('');
 const loading = ref(false);
 const resendLoading = ref(false);
 
+function clearError() {
+  if (error.value) error.value = '';
+}
+
 // Show confirmation message if code was just sent
 watch(
   () => authStore.justSentCode,
   (just) => {
     if (just) {
-      message.value = '✓ Verification code sent to your email';
+      message.value = 'Verification code sent to your email.';
       authStore.justSentCode = false;
       setTimeout(() => {
         message.value = '';
@@ -91,10 +101,17 @@ async function navigateAfterVerify() {
 async function submitCode() {
   error.value = '';
   message.value = '';
+
+  const trimmed = code.value.trim();
+  if (trimmed.length !== 6 || !/^\d{6}$/.test(trimmed)) {
+    error.value = 'Please enter the 6-digit code from your email.';
+    return;
+  }
+
   loading.value = true;
 
   try {
-    await authStore.verifyEmailOtp(code.value.trim());
+    await authStore.verifyEmailOtp(trimmed);
     message.value = 'Email verified successfully.';
     await navigateAfterVerify();
   } catch (err: unknown) {
@@ -112,7 +129,7 @@ async function resendCode() {
 
   try {
     await authStore.resendEmailVerification();
-    message.value = '✓ A new code has been sent to your inbox.';
+    message.value = 'A new code has been sent to your inbox.';
     setTimeout(() => {
       message.value = '';
     }, 4000);
@@ -120,7 +137,7 @@ async function resendCode() {
     error.value =
       err instanceof Error
         ? err.message
-        : 'Could not resend the code. Please try again.';
+        : "Couldn't resend the code. Please try again.";
   } finally {
     resendLoading.value = false;
   }
@@ -211,13 +228,25 @@ onMounted(async () => {
     font-family: $font-family;
     font-size: $font-size-base;
     border-radius: $radius-md;
+    letter-spacing: 0.4em;
 
     &::placeholder {
       color: var(--text-tertiary);
+      letter-spacing: 0.2em;
     }
 
     &:focus {
       outline: none;
+    }
+  }
+
+  &.has-error {
+    box-shadow:
+      var(--neo-inset),
+      0 0 0 1.5px rgba($danger, 0.7);
+
+    .field-icon {
+      color: $danger;
     }
   }
 }
@@ -225,12 +254,43 @@ onMounted(async () => {
 .verify-error,
 .verify-message {
   margin: 0;
-  color: var(--text-tertiary);
-  min-height: 1.25rem;
+  padding: 0.625rem 0.875rem;
+  font-size: $font-size-sm;
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  line-height: 1.35;
+
+  .error-icon,
+  .success-icon {
+    font-size: 1.125rem;
+    flex-shrink: 0;
+  }
 }
 
 .verify-error {
-  color: var(--danger);
+  color: $danger;
+  background: rgba($danger, 0.08);
+  border: 1px solid rgba($danger, 0.25);
+}
+
+.verify-message {
+  color: $success;
+  background: rgba($success, 0.08);
+  border: 1px solid rgba($success, 0.25);
+}
+
+html[data-theme='dark'] {
+  .verify-error {
+    background: rgba($danger, 0.12);
+    border-color: rgba($danger, 0.35);
+  }
+  .verify-message {
+    background: rgba($success, 0.12);
+    border-color: rgba($success, 0.35);
+  }
 }
 
 .btn-login,
