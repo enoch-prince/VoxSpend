@@ -94,10 +94,42 @@ async function sendEmailWithMailgun(sender: string, recipient: string, body: str
   }
 }
 
+async function sendEmailWithMailerSend(sender: string, recipient: string, body: string) {
+  const apiKey = process.env.MAILERSEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('MailerSend API key is not configured.');
+  }
+
+  const payload = {
+    from: { email: sender, name: 'VoxSpend' },
+    to: [{ email: recipient }],
+    subject: VERIFICATION_SUBJECT,
+    text: body,
+  };
+
+  const response = await fetch('https://api.mailersend.com/v1/email', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`MailerSend email failed: ${response.status} ${text}`);
+  }
+}
+
 async function sendVerificationEmail(email: string, code: string) {
   const body = buildEmailBody(code);
   const sender =
-    process.env.SENDGRID_FROM || process.env.EMAIL_FROM || process.env.MAIL_FROM;
+    process.env.SENDGRID_FROM ||
+    process.env.MAILGUN_FROM ||
+    process.env.MAILERSEND_FROM ||
+    process.env.EMAIL_FROM ||
+    process.env.MAIL_FROM;
 
   if (process.env.SENDGRID_API_KEY) {
     if (!sender) throw new Error('Email sender address is not configured.');
@@ -109,21 +141,26 @@ async function sendVerificationEmail(email: string, code: string) {
     return await sendEmailWithMailgun(sender, email, body);
   }
 
+  if (process.env.MAILERSEND_API_KEY) {
+    if (!sender) throw new Error('Email sender address is not configured.');
+    return await sendEmailWithMailerSend(sender, email, body);
+  }
+
   // No provider configured. Convex always sets NODE_ENV=production, so we
   // can't rely on it to decide between dev-log-fallback and prod-throw.
   // Instead: when nothing is wired up, log the code to Convex logs so dev
   // works out of the box. Real production deployments MUST configure either
-  // SENDGRID_API_KEY or MAILGUN_API_KEY (+ MAILGUN_DOMAIN), or set
-  // REQUIRE_EMAIL_PROVIDER=true to make this branch throw instead.
+  // SENDGRID_API_KEY, MAILGUN_API_KEY (+ MAILGUN_DOMAIN), or MAILERSEND_API_KEY,
+  // or set REQUIRE_EMAIL_PROVIDER=true to make this branch throw instead.
   if (process.env.REQUIRE_EMAIL_PROVIDER === 'true') {
     throw new Error(
-      'No email provider is configured. Set SENDGRID_API_KEY or MAILGUN_API_KEY in the environment.',
+      'No email provider is configured. Set SENDGRID_API_KEY, MAILGUN_API_KEY, or MAILERSEND_API_KEY in the environment.',
     );
   }
 
   console.warn(
     `[verification] No email provider configured — logging code to Convex logs. ` +
-      `Configure SENDGRID_API_KEY or MAILGUN_API_KEY (and a sender address) before production.`,
+      `Configure SENDGRID_API_KEY, MAILGUN_API_KEY, or MAILERSEND_API_KEY (and a sender address) before production.`,
   );
   console.info(`VoxSpend verification code for ${email}: ${code}`);
 }
