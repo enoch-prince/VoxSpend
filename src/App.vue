@@ -140,13 +140,28 @@
     }
   }
 
-  // Fires for both cases: refresh while signed in (initialize() restores token)
-  // and live sign-in/sign-up (auth store flips after AuthView submits).
+  // Hydrate only once the user is BOTH authenticated and email-verified.
+  // The server-side `requireVerifiedUser` check rejects expenses/categories/
+  // momo queries from unverified users, so firing hydrate during the brief
+  // post-signup pre-verification window just spams the Convex logs and
+  // leaves the local cache empty after verification (the watcher only sees
+  // each transition once).
+  const isReadyToHydrate = computed(
+    () => authStore.isAuthenticated && authStore.emailVerified === true,
+  );
+  let didHydrate = false;
   watch(
-    () => authStore.isAuthenticated,
-    (isAuth, wasAuth) => {
-      if (isAuth && !wasAuth) void initializeUserData();
+    isReadyToHydrate,
+    (ready) => {
+      if (ready && !didHydrate) {
+        didHydrate = true;
+        void initializeUserData();
+      } else if (!ready) {
+        // Sign-out or verification revoked — allow a re-hydrate on next ready.
+        didHydrate = false;
+      }
     },
+    { immediate: true },
   );
 
   onMounted(() => {
