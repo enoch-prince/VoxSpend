@@ -19,39 +19,38 @@ export const sendReminders = internalAction({
       return;
     }
 
-    const pageSize = 100;
-    let cursor: string | null = null;
+    // Gate the action body on an explicit env var. Set PUSH_REMINDERS_ENABLED=true
+    // only on the prod deployment; dev/preview deployments remain a no-op so the
+    // cron doesn't burn function-call quota on empty work.
+    if (process.env.PUSH_REMINDERS_ENABLED !== 'true') {
+      console.log('sendReminders skipped: PUSH_REMINDERS_ENABLED!=true');
+      return;
+    }
+
     const notificationPayload = JSON.stringify({
       title: 'Expense Reminder',
       body: 'Did you spend anything today? Keep your budget accurate by logging it now!',
       url: '/',
     });
 
-    do {
-      const result: {
-        page: Array<{ endpoint: string; keys: { p256dh: string; auth: string } }>;
-        continueCursor: string | null;
-      } = await ctx.runQuery(internal.subscriptions.getActiveSubscriptions, {
-        paginationOpts: { numItems: pageSize, cursor },
-      });
+    const subs: Array<{ endpoint: string; keys: { p256dh: string; auth: string } }> =
+      await ctx.runQuery(internal.subscriptions.getActiveSubscriptions, {});
 
-      const subs = result.page;
-      cursor = result.continueCursor;
-
-      for (const sub of subs) {
-        try {
-          await webPush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: sub.keys,
-            },
-            notificationPayload
-          );
-        } catch (error: any) {
-          console.error('Error sending push to', sub.endpoint, error);
-          // Typically, if status is 410 (Gone), the subscription is expired/unsubscribed
-        }
+    for (const sub of subs) {
+      try {
+        await webPush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: sub.keys,
+          },
+          notificationPayload
+        );
+      } catch (error: any) {
+        console.error('Error sending push to', sub.endpoint, error);
+        // Typically, if status is 410 (Gone), the subscription is expired/unsubscribed
       }
-    } while (cursor);
+    }
+
+    console.log('sendReminders dispatched', subs.length, 'notifications');
   },
 });
