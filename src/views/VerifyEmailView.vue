@@ -324,6 +324,14 @@ onMounted(async () => {
     return;
   }
 
+  // Auto-send the first OTP for users who arrive without a fresh code in flight
+  // (old users signing in, anyone refreshing mid-flow). The justSentCode path
+  // above handles fresh sign-ups and starts the cooldown, so this guard never
+  // double-fires for them.
+  if (!authStore.justSentCode && cooldown.value === 0 && !resendLoading.value) {
+    void resendCode();
+  }
+
   nextTick(() => focusInput(0));
 });
 </script>
