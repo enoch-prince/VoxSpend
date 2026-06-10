@@ -1,15 +1,17 @@
 import { mutation, internalQuery } from './_generated/server';
-import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+// Returns every enabled push subscription in a single query result.
+// Bounded by Convex's per-query limits (16k docs / 8MB). At ~400 bytes per
+// row this comfortably fits well past any realistic install base; revisit
+// with chunking only if active subs approach ~10k.
 export const getActiveSubscriptions = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     return await ctx.db
       .query('pushSubscriptions')
       .withIndex('by_enabled', (q) => q.eq('enabled', true))
-      .order('asc')
-      .paginate(args.paginationOpts);
+      .collect();
   },
 });
 
