@@ -68,6 +68,8 @@ function extractTail(err: unknown): string {
 export function toFriendlyError(err: unknown, fallback?: string): FriendlyError {
   const tail = extractTail(err);
 
+  console.error(tail);
+
   for (const [pattern, message, field] of AUTH_RULES) {
     if (pattern.test(tail)) return new FriendlyError(message, field);
   }
