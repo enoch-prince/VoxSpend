@@ -100,11 +100,26 @@ async function sendEmailWithMailerSend(sender: string, recipient: string, body: 
     throw new Error('MailerSend API key is not configured.');
   }
 
+  const personalization = [
+        {
+            email: recipient,
+            data: {
+                otp: body,
+                account: {
+                    name: "VoxSpend",
+                },
+                support_email: "info@voxspend.com"
+            }
+        }
+    ];
+
   const payload = {
     from: { email: sender, name: 'VoxSpend' },
     to: [{ email: recipient }],
     subject: VERIFICATION_SUBJECT,
     text: body,
+    personalization: personalization,
+    template_id: "o65qngk1xn8lwr12",
   };
 
   const response = await fetch('https://api.mailersend.com/v1/email', {
@@ -112,6 +127,7 @@ async function sendEmailWithMailerSend(sender: string, recipient: string, body: 
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
     },
     body: JSON.stringify(payload),
   });
@@ -143,7 +159,7 @@ async function sendVerificationEmail(email: string, code: string) {
 
   if (process.env.MAILERSEND_API_KEY) {
     if (!sender) throw new Error('Email sender address is not configured.');
-    return await sendEmailWithMailerSend(sender, email, body);
+    return await sendEmailWithMailerSend(sender, email, code);
   }
 
   // No provider configured. Convex always sets NODE_ENV=production, so we
