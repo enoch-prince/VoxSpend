@@ -1,4 +1,4 @@
-import { action, query, mutation, internalMutation } from './_generated/server';
+import { action, query, mutation, internalMutation, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { v } from 'convex/values';
@@ -201,6 +201,14 @@ export const emailVerificationStatus = query({
   },
 });
 
+export const _getUserEmail = internalQuery({
+  args: { userId: v.id('users') },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    return user?.email ?? null;
+  },
+});
+
 export const _storeVerificationCode = internalMutation({
   args: {
     userId: v.id('users'),
@@ -315,8 +323,9 @@ export const requestEmailVerification = action({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthorized');
 
-    const identity = await ctx.auth.getUserIdentity();
-    const email = identity?.email;
+    // The Password-provider JWT doesn't populate identity.email — read it
+    // from the users row that Convex Auth maintains instead.
+    const email = await ctx.runQuery(internal.verification._getUserEmail, { userId });
     if (!email) {
       throw new Error('Could not determine your email address.');
     }
