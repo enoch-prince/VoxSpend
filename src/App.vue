@@ -1,5 +1,25 @@
 <template>
   <div class="app-shell" :class="{ 'has-nav': showNav }">
+    <!-- App update prompt -->
+    <transition name="page">
+      <div v-if="updateAvailable" class="update-banner" role="alert">
+        <div class="update-banner__content">
+          <span class="material-symbols-rounded">system_update</span>
+          <p>A new version of VoxSpend is available.</p>
+          <button type="button" class="update-banner__btn" @click="applyUpdate">
+            Update
+          </button>
+          <button
+            type="button"
+            class="update-banner__btn update-banner__btn--ghost"
+            @click="dismissUpdate"
+          >
+            Later
+          </button>
+        </div>
+      </div>
+    </transition>
+
     <!-- Offline / sync banner -->
     <transition name="page">
       <div v-if="!isOnline" class="offline-banner">
@@ -94,14 +114,29 @@
     }
   });
 
+  // Service worker update flow:
+  // - Background check every hour for a new build.
+  // - When a new build is ready, surface a banner asking the user to update
+  //   instead of silently reloading the page mid-task (which used to be the
+  //   behaviour — silent updateServiceWorker(true) on onNeedRefresh).
+  const updateAvailable = ref(false);
   const { updateServiceWorker } = useRegisterSW({
     onRegistered(r) {
       if (r) setInterval(() => r.update(), 60 * 60 * 1000);
     },
     onNeedRefresh() {
-      updateServiceWorker(true);
+      updateAvailable.value = true;
     },
   });
+
+  function applyUpdate() {
+    updateAvailable.value = false;
+    void updateServiceWorker(true);
+  }
+
+  function dismissUpdate() {
+    updateAvailable.value = false;
+  }
 
   const showNav = computed(() => !route.meta.hideNav);
   // Surface combined pending state to the offline banner.
@@ -171,6 +206,8 @@
 </script>
 
 <style lang="scss">
+  @use '@/assets/scss/variables' as *;
+
   .app-shell {
     display: flex;
     flex-direction: column;
@@ -179,6 +216,66 @@
 
     &.has-nav {
       padding-bottom: var(--bottom-nav-height);
+    }
+  }
+
+  .update-banner {
+    position: relative;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: $max-app-width;
+    width: 100%;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, $primary, $primary-light);
+    color: #fff;
+    z-index: 1001;
+    animation: slideDown 300ms ease;
+
+    &__content {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      max-width: 100%;
+
+      .material-symbols-rounded {
+        font-size: 1.125rem;
+        flex-shrink: 0;
+      }
+
+      p {
+        margin: 0;
+        font-size: $font-size-sm;
+        font-weight: 600;
+        flex: 1;
+        min-width: 0;
+      }
+    }
+
+    &__btn {
+      border: none;
+      padding: 6px 12px;
+      border-radius: $radius-sm;
+      background: rgba(255, 255, 255, 0.22);
+      color: #fff;
+      font-family: $font-family;
+      font-size: $font-size-xs;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background $transition-fast;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.32);
+      }
+
+      &--ghost {
+        background: transparent;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.14);
+        }
+      }
     }
   }
 
