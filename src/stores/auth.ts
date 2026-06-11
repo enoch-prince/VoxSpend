@@ -110,9 +110,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchEmailVerificationStatus(): Promise<boolean> {
     if (!token.value) return false;
     try {
-      const response = (await convex.query(
-        'verification.emailVerificationStatus' as any,
-      )) as { emailVerified?: boolean; email?: string } | null;
+      const response = await convex.query(api.verification.emailVerificationStatus);
 
       const verified = response?.emailVerified === true;
       if (verified) {
@@ -136,7 +134,7 @@ export const useAuthStore = defineStore('auth', () => {
     await resolveUserId();
 
     try {
-      await convex.action('verification.requestEmailVerification' as any, {});
+      await convex.action(api.verification.requestEmailVerification, {});
       _setVerified(false);
       justSentCode.value = true;
       // Pull the now-populated profile email so the verify-email subtitle
@@ -156,7 +154,7 @@ export const useAuthStore = defineStore('auth', () => {
     await resolveUserId();
 
     try {
-      await convex.action('verification.verifyEmailOtp' as any, { code });
+      await convex.action(api.verification.verifyEmailOtp, { code });
       _setVerified(true);
       return true;
     } catch (err) {
