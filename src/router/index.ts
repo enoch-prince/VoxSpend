@@ -6,6 +6,8 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useUserStore } from '@/stores/user';
 
+const ONBOARDING_SHOWN_KEY = 'voxspend-onboarding-shown';
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -78,10 +80,6 @@ const router = createRouter({
   ],
 });
 
-// Splash gate — resets on every page load, so the intro slides show as the
-// first screen each time the app opens, regardless of auth or prior visits.
-// let introShownThisLoad = false;
-
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
   const userStore = useUserStore();
@@ -105,13 +103,31 @@ router.beforeEach(async (to) => {
   const isAuthenticated = authStore.isAuthenticated && !!authStore.currentUserId;
   const isVerified = authStore.emailVerified === true;
   const isPublicRoute = to.meta.public === true;
+  const onboardingShown = localStorage.getItem(ONBOARDING_SHOWN_KEY) === 'true';
+
+  // 0. Anyone who reaches authenticated state has graduated past the intro —
+  // mark it shown so existing users (and re-signs-in) never see it again.
+  if (isAuthenticated && !onboardingShown) {
+    localStorage.setItem(ONBOARDING_SHOWN_KEY, 'true');
+  }
 
   // 1. Already signed in — don't show /auth again
   if (isAuthenticated && to.name === 'auth') {
     return { name: isVerified ? 'dashboard' : 'verify-email' };
   }
 
-  // 2. Auth check — redirect unauthenticated users to /auth
+  // 2a. First-time, unauthenticated visitors see the onboarding carousel
+  // before /auth. Once they finish or skip it, OnboardingView sets the flag.
+  if (!isAuthenticated && !onboardingShown && to.name !== 'onboarding') {
+    return { name: 'onboarding' };
+  }
+
+  // 2b. Returning unauthenticated visitors go straight to /auth.
+  if (!isAuthenticated && onboardingShown && to.name === 'onboarding') {
+    return { name: 'auth' };
+  }
+
+  // 2c. Auth check — redirect unauthenticated users to /auth
   if (!isAuthenticated && !isPublicRoute) {
     return { name: 'auth' };
   }

@@ -70,9 +70,11 @@
   const currentSlide = ref(0);
 
   function finishIntro() {
-    // Route to dashboard and let the router guard send signed-out users to
-    // /auth and not-yet-configured users to /setup.
-    router.replace('/');
+    // Persist so the carousel never shows again on this device, then send
+    // them to sign-in. Authenticated users coming back are already handled
+    // by the router guard, which sets the same flag on the first authed hit.
+    localStorage.setItem('voxspend-onboarding-shown', 'true');
+    router.replace({ name: 'auth' });
   }
 
   const slides = [
