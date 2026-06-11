@@ -110,7 +110,7 @@ export type MomoProvider = 'mtn' | 'telecel' | 'airteltigo';
 export const MOMO_PROVIDERS: Record<MomoProvider, { name: string; color: string; logo: string }> = {
   mtn: { name: 'MTN Mobile Money', color: '#FFCC00', logo: '📱' },
   telecel: { name: 'Telecel Cash', color: '#E40521', logo: '📱' },
-  airteltigo: { name: 'AirtelTigo Money', color: '#E40000', logo: '📱' },
+  airteltigo: { name: 'AirtelTigo Money', color: '#1700e4', logo: '📱' },
 };
 
 // Templates only — the store fills in id/userId/clientId/synced/createdAt at seed time.
