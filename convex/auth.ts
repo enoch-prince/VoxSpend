@@ -16,3 +16,25 @@ export const me = query({
     return userId ?? null;
   },
 });
+
+// Single round-trip auth+verification state for the client. Replaces a pair
+// of separate calls (`auth.me` + `verification.emailVerificationStatus`) that
+// the client previously made together on every refresh / sign-in.
+export const session = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return { userId: null, emailVerified: false, email: null };
+    }
+    const profile = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .unique();
+    return {
+      userId,
+      emailVerified: profile?.emailVerified === true,
+      email: profile?.email ?? null,
+    };
+  },
+});
