@@ -53,6 +53,12 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = t;
     localStorage.setItem(TOKEN_KEY, t);
     setConvexToken(t);
+    // Clear cached identity so resolveUserId's short-circuit can't return
+    // the previous account's id after a switch.
+    currentUserId.value = null;
+    localStorage.removeItem(USER_ID_KEY);
+    emailVerified.value = null;
+    localStorage.removeItem(VERIFIED_KEY);
   }
 
   function _setVerified(value: boolean) {
@@ -83,50 +89,75 @@ export const useAuthStore = defineStore('auth', () => {
     setSyncUser(null);
   }
 
+  // Single round-trip auth+verification refresh. Replaces the previous pair
+  // of separate `api.auth.me` + `api.verification.emailVerificationStatus`
+  // calls. In-flight promise is cached so concurrent callers (sign-in path,
+  // router guard, watcher) share one network round-trip.
+  let sessionInFlight: Promise<{
+    userId: string | null;
+    emailVerified: boolean;
+    email: string | null;
+  } | null> | null = null;
+
+  async function loadSession() {
+    if (!token.value) return null;
+    if (sessionInFlight) return sessionInFlight;
+
+    sessionInFlight = (async () => {
+      try {
+        const response = await convex.query(api.auth.session);
+        if (!response?.userId) {
+          _clearTokens();
+          return null;
+        }
+        currentUserId.value = response.userId;
+        localStorage.setItem(USER_ID_KEY, response.userId);
+        setSyncUser(response.userId);
+
+        if (response.emailVerified) {
+          _setVerified(true);
+        } else if (emailVerified.value === null) {
+          _setVerified(false);
+        }
+
+        if (response.email) {
+          _setVerificationEmail(response.email);
+        }
+
+        return response;
+      } catch {
+        return null;
+      } finally {
+        sessionInFlight = null;
+      }
+    })();
+
+    return sessionInFlight;
+  }
+
   /**
    * Fetch the signed-in user's Convex _id and pin it to the sync engine.
    * Call this after sign-in/sign-up and after restoring a token from
-   * localStorage on app boot. Safe to call repeatedly.
+   * localStorage on app boot. Safe to call repeatedly — short-circuits when
+   * the id is already cached so navigation is free.
    */
   async function resolveUserId(): Promise<string | null> {
     if (!token.value) return null;
-    try {
-      const id = (await convex.query(api.auth.me)) as string | null;
-      if (!id) {
-        _clearTokens();
-        return null;
-      }
-      currentUserId.value = id;
-      localStorage.setItem(USER_ID_KEY, id);
-      setSyncUser(id);
-      await fetchEmailVerificationStatus();
-      return id;
-    } catch {
-      // Offline or transient error — keep whatever we already had cached.
-      return currentUserId.value;
-    }
+    if (currentUserId.value) return currentUserId.value;
+
+    const session = await loadSession();
+    return session?.userId ?? currentUserId.value;
   }
 
   async function fetchEmailVerificationStatus(): Promise<boolean> {
     if (!token.value) return false;
-    try {
-      const response = await convex.query(api.verification.emailVerificationStatus);
+    // Verification is monotonic on the client. Once we've seen `true`, trust
+    // the cache — the server still rejects via `requireVerifiedUser` if a
+    // profile gets revoked, and the friendly-error path surfaces that.
+    if (emailVerified.value === true) return true;
 
-      const verified = response?.emailVerified === true;
-      if (verified) {
-        _setVerified(true);
-      } else if (emailVerified.value === null) {
-        _setVerified(false);
-      }
-
-      if (response?.email) {
-        _setVerificationEmail(response.email);
-      }
-
-      return verified;
-    } catch {
-      return emailVerified.value ?? false;
-    }
+    const session = await loadSession();
+    return session?.emailVerified ?? (emailVerified.value ?? false);
   }
 
   async function requestEmailVerification() {
