@@ -169,8 +169,10 @@
         router.replace({ name: 'verify-email' });
       } else {
         await authStore.signIn(email.value.trim(), password.value);
+        // resolveUserId loads the session (userId + emailVerified + email) in
+        // one round-trip via loadSession — no need to also call
+        // fetchEmailVerificationStatus here.
         await authStore.resolveUserId();
-        await authStore.fetchEmailVerificationStatus();
         if (authStore.emailVerified) {
           router.replace('/');
         } else {
