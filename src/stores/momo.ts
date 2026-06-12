@@ -35,15 +35,23 @@ export const useMomoStore = defineStore('momo', () => {
     return id;
   }
 
+  const RECONCILE_TTL_MS = 60_000;
+  const RECONCILE_KEY = 'voxspend-reconcile-momo';
+
   async function hydrate() {
     loading.value = true;
     try {
       const userId = currentUserId();
       accounts.value = await db.momoAccounts.where('userId').equals(userId).sortBy('linkedAt');
       if (navigator.onLine) {
-        void reconcileFromServer().catch(() => {
-          /* swallow */
-        });
+        const lastReconcile = Number(localStorage.getItem(RECONCILE_KEY) ?? 0);
+        if (Date.now() - lastReconcile > RECONCILE_TTL_MS) {
+          void reconcileFromServer()
+            .then(() => localStorage.setItem(RECONCILE_KEY, String(Date.now())))
+            .catch(() => {
+              /* swallow */
+            });
+        }
       }
     } finally {
       loading.value = false;

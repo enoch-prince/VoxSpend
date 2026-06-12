@@ -135,16 +135,24 @@ export const useExpensesStore = defineStore('expenses', () => {
    * reconcile if online. Never throws on network failure — local data is
    * always available.
    */
+  const RECONCILE_TTL_MS = 60_000;
+  const RECONCILE_KEY = 'voxspend-reconcile-expenses';
+
   async function hydrate() {
     loading.value = true;
     try {
       const userId = currentUserId();
       expenses.value = await db.expenses.where('userId').equals(userId).reverse().sortBy('date');
       if (navigator.onLine) {
-        // Don't block UI on the reconcile.
-        void reconcileFromServer().catch(() => {
-          /* swallow — local data still serves */
-        });
+        const lastReconcile = Number(localStorage.getItem(RECONCILE_KEY) ?? 0);
+        if (Date.now() - lastReconcile > RECONCILE_TTL_MS) {
+          // Don't block UI on the reconcile.
+          void reconcileFromServer()
+            .then(() => localStorage.setItem(RECONCILE_KEY, String(Date.now())))
+            .catch(() => {
+              /* swallow — local data still serves */
+            });
+        }
       }
     } finally {
       loading.value = false;

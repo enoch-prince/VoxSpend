@@ -47,6 +47,9 @@ export const useCategoriesStore = defineStore('categories', () => {
     return map;
   });
 
+  const RECONCILE_TTL_MS = 60_000;
+  const RECONCILE_KEY = 'voxspend-reconcile-categories';
+
   async function hydrate() {
     loading.value = true;
     try {
@@ -62,9 +65,14 @@ export const useCategoriesStore = defineStore('categories', () => {
       }
 
       if (navigator.onLine) {
-        void reconcileFromServer().catch(() => {
-          /* swallow — local data still serves */
-        });
+        const lastReconcile = Number(localStorage.getItem(RECONCILE_KEY) ?? 0);
+        if (Date.now() - lastReconcile > RECONCILE_TTL_MS) {
+          void reconcileFromServer()
+            .then(() => localStorage.setItem(RECONCILE_KEY, String(Date.now())))
+            .catch(() => {
+              /* swallow — local data still serves */
+            });
+        }
       }
     } finally {
       loading.value = false;
