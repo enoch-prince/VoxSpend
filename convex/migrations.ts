@@ -66,3 +66,36 @@ export const backfillClientIds = internalMutation({
     return { table, patched, continueCursor: page.continueCursor ?? null };
   },
 });
+
+// Finds authAccounts rows whose userId no longer exists in the users table
+// and recreates the missing users document (using providerAccountId as email,
+// since the Password provider stores the email there). Safe to re-run.
+export const repairOrphanedAuthAccounts = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const accounts = await ctx.db.query('authAccounts').take(200);
+    let repaired = 0;
+    let alreadyOk = 0;
+
+    for (const account of accounts) {
+      const user = await ctx.db.get(account.userId);
+      if (user !== null) {
+        alreadyOk += 1;
+        continue;
+      }
+
+      // providerAccountId is the email for the Password provider.
+      const email =
+        account.provider === 'password' ? account.providerAccountId : undefined;
+
+      const newUserId = await ctx.db.insert('users', {
+        ...(email !== undefined ? { email } : {}),
+      });
+
+      await ctx.db.patch(account._id, { userId: newUserId });
+      repaired += 1;
+    }
+
+    return { repaired, alreadyOk };
+  },
+});
