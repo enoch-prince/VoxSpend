@@ -8,6 +8,18 @@
 //
 // They patch a `crypto.randomUUID()` onto every existing row that lacks
 // a `clientId`. Idempotent — re-running is a no-op.
+//
+// ============================================
+// Auth repair migration
+// ============================================
+//
+// Run this if users cannot register or login due to orphaned authAccounts:
+//
+//   npx convex run migrations:repairOrphanedAuthAccounts
+//
+// This finds all authAccounts rows whose userId no longer exists in the
+// users table (e.g. after an accidental data clear) and recreates the
+// missing users document, restoring the ability to sign in.
 
 import { internalMutation } from './_generated/server';
 import { internal } from './_generated/api';
