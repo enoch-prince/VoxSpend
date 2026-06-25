@@ -204,10 +204,11 @@
   .auth-view {
     min-height: 100dvh;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     padding: 2rem 1.5rem;
     background: var(--bg);
+    overflow-y: auto;
   }
 
   .auth-container {
@@ -217,6 +218,7 @@
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
+    margin-block: auto;
   }
 
   /* ---- Logo ---- */
