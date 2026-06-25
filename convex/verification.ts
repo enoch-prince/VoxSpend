@@ -138,14 +138,46 @@ async function sendEmailWithMailerSend(sender: string, recipient: string, body: 
   }
 }
 
+async function sendEmailWithResend(sender: string, recipient: string, body: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('Resend API key is not configured.');
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: sender,
+      to: [recipient],
+      subject: VERIFICATION_SUBJECT,
+      text: body,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Resend email failed: ${response.status} ${text}`);
+  }
+}
+
 async function sendVerificationEmail(email: string, code: string) {
   const body = buildEmailBody(code);
   const sender =
+    process.env.RESEND_FROM ||
     process.env.SENDGRID_FROM ||
     process.env.MAILGUN_FROM ||
     process.env.MAILERSEND_FROM ||
     process.env.EMAIL_FROM ||
     process.env.MAIL_FROM;
+
+  if (process.env.RESEND_API_KEY) {
+    if (!sender) throw new Error('Email sender address is not configured.');
+    return await sendEmailWithResend(sender, email, body);
+  }
 
   if (process.env.SENDGRID_API_KEY) {
     if (!sender) throw new Error('Email sender address is not configured.');
