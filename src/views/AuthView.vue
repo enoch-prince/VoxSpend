@@ -6,7 +6,11 @@
         <div class="logo-mark">
           <img src="/icons/icon-192.png" alt="VoxSpend" />
         </div>
-        <h1>VoxSpend</h1>
+        <div class="flex flex-row items-center gap-sm">
+          <h1>VoxSpend</h1>
+          <p class="version" style="margin-top: 0.3rem;">v{{ appVersion }}</p>
+        </div>
+        
         <p><i>Track spending with your voice</i></p>
       </div>
 
@@ -111,6 +115,7 @@
   const error = ref('');
   const errorField = ref<ErrorField>(null);
   const loading = ref(false);
+  const appVersion = APP_VERSION;
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
