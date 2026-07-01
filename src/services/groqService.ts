@@ -1,5 +1,5 @@
 // ============================================
-// Groq AI Service (Whisper + Llama)
+// Groq AI Service (Whisper + ~Llama~ Qwen3.6 27B)
 // ============================================
 
 import type { ParsedExpense } from '@/types';
@@ -63,7 +63,7 @@ export async function parseExpense(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'qwen3.6-27b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: transcript },
