@@ -159,6 +159,14 @@
         </div>
       </div>
 
+      <!-- Sign Out -->
+      <div class="neo-card-sm mb-md">
+        <div class="profile-view__row" @click="handleSignOut">
+          <span class="material-symbols-rounded text-danger">logout</span>
+          <span class="text-sm font-semibold flex-1 text-danger">Sign Out</span>
+        </div>
+      </div>
+
       <!-- App Info -->
       <div class="profile-view__footer">
         <p class="text-xs text-tertiary">VoxSpend v{{ appVersion }}</p>
@@ -177,7 +185,9 @@
 
 <script setup lang="ts">
   import { ref } from 'vue';
+  import { useRouter } from 'vue-router';
   import { useUserStore } from '@/stores/user';
+  import { useAuthStore } from '@/stores/auth';
   import { useThemeStore } from '@/stores/theme';
   import { useMomoStore } from '@/stores/momo';
   import { useExpensesStore } from '@/stores/expenses';
@@ -185,7 +195,9 @@
   import { usePwaInstall } from '@/composables/usePwaInstall';
   import { convex, api } from '@/services/convexClient';
 
+  const router = useRouter();
   const userStore = useUserStore();
+  const authStore = useAuthStore();
   const themeStore = useThemeStore();
   const momoStore = useMomoStore();
   const expensesStore = useExpensesStore();
@@ -201,6 +213,11 @@
   const newCatColor = ref('#6366F1');
   const notificationToggling = ref(false);
   const optimisticNotificationsEnabled = ref(userStore.profile.notificationsEnabled ?? false);
+
+  async function handleSignOut() {
+    await authStore.signOut();
+    await router.push({ name: 'auth' });
+  }
 
   function saveApiKey() {
     userStore.setApiKey(apiKeyInput.value);
