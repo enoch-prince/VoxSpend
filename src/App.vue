@@ -64,10 +64,27 @@
       >
         <div class="flex items-center justify-center gap-sm">
           <span class="material-symbols-rounded icon-sm">{{ syncHasErrors ? 'error_outline' : 'cloud_sync' }}</span>
-          <p>
+          <p style="flex: 1">
             <template v-if="syncHasErrors">{{ syncSummary }} failed to sync</template>
             <template v-else>{{ syncSummary }} queued to sync</template>
           </p>
+          <button
+            v-if="syncHasErrors"
+            type="button"
+            class="update-banner__btn"
+            :style="'background: var(--danger, #e53e3e); color: #fff; border: none'"
+            @click="syncRetryFailed()"
+          >
+            Retry
+          </button>
+          <button
+            v-else
+            type="button"
+            class="update-banner__btn"
+            @click="syncDrain()"
+          >
+            Sync now
+          </button>
         </div>
       </div>
     </transition>
@@ -111,6 +128,7 @@
     isDraining as syncIsDraining,
     hasErrors as syncHasErrors,
     drain as syncDrain,
+    retryFailed as syncRetryFailed,
     startSyncListeners,
     needsReauth,
   } from '@/services/syncEngine';
