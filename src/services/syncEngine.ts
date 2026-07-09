@@ -36,6 +36,11 @@ const BACKOFF_SCHEDULE_MS = [1_000, 5_000, 30_000, 60_000, 300_000];
 let inMemoryDraining = false;
 let heartbeat: ReturnType<typeof setInterval> | null = null;
 let currentUserId: string | null = null;
+let _refreshTokenCallback: (() => Promise<boolean>) | null = null;
+
+export function setRefreshCallback(cb: () => Promise<boolean>): void {
+  _refreshTokenCallback = cb;
+}
 
 export function setSyncUser(userId: string | null) {
   currentUserId = userId;
@@ -222,6 +227,14 @@ async function handleFailure(item: SyncQueueItem, err: unknown): Promise<boolean
   const isNetwork = /network|failed to fetch|fetch.*failed|offline|timeout/i.test(message);
 
   if (isAuth) {
+    if (_refreshTokenCallback) {
+      try {
+        const refreshed = await _refreshTokenCallback();
+        if (refreshed) return true; // new token acquired — let the drain retry this item
+      } catch {
+        // refresh itself failed; fall through to stop
+      }
+    }
     needsReauth.value = true;
     if (item.id !== undefined) {
       await db.syncQueue.update(item.id, {
