@@ -88,7 +88,7 @@ export const useVoiceStore = defineStore('voice', () => {
           audioBase64: base64Audio,
           categories: categoriesStore.categoryNames,
         });
-
+        // console.log('Convex transcribeAndParse result:', data);
         transcript.value = data.transcript;
 
         parsedExpenses.value = (data.result.results || []).map((res: any) => ({
@@ -141,6 +141,8 @@ export const useVoiceStore = defineStore('voice', () => {
       return;
     }
 
+    // console.log("Transcript received >>>> ", text);
+
     const userStore = useUserStore();
     const categoriesStore = useCategoriesStore();
 
@@ -152,6 +154,8 @@ export const useVoiceStore = defineStore('voice', () => {
         userStore.profile.groqApiKey,
         categoriesStore.categoryNames
       );
+
+      // console.log('Parsed expense result:', result);
 
       parsedExpenses.value = (result.results || []).map((res: any) => ({
         ...res,
