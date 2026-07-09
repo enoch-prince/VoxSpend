@@ -47,10 +47,7 @@ export async function parseExpense(
   apiKey: string,
   categories: string[]
 ): Promise<{ results: ParsedExpense[] }> {
-  const today = new Date().toISOString().split('T')[0];
-  // const categoryList = categories.join(', ');
-
-  const systemPrompt = buildGroqSystemPrompt(transcript, categories);
+  const systemPrompt = buildGroqSystemPrompt(categories);
 
   if (!apiKey || apiKey.trim() === '') {
     throw new Error('Groq API Key is missing. Please add it in Settings.');
@@ -89,7 +86,7 @@ export async function parseExpense(
     results: parsed.results.map((item) => ({
       ...item,
       note: item.note || transcript,
-      date: item.date || today,
+      date: item.date || new Date().toISOString().split('T')[0],
     })),
   };
 }

@@ -59,7 +59,7 @@ export const transcribeAndParse = action({
       const transcript = (await transcriptionRes.text()).trim();
 
       // 3. Parse with Llama
-      const systemPrompt = buildGroqSystemPrompt(transcript, args.categories);
+      const systemPrompt = buildGroqSystemPrompt(args.categories);
 
       const parseRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',

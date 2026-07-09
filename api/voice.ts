@@ -62,7 +62,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     // 3. Parse with Llama
     const today = new Date().toISOString().split('T')[0];
-    const systemPrompt = buildGroqSystemPrompt(transcript, categories);
+    const systemPrompt = buildGroqSystemPrompt(categories);
 
     const parseRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
