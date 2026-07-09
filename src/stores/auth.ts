@@ -6,9 +6,10 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { convex, api, setConvexToken, clearConvexToken } from '@/services/convexClient';
 import { toFriendlyError } from '@/utils/errors';
-import { setSyncUser } from '@/services/syncEngine';
+import { setSyncUser, setRefreshCallback, clearReauthFlag } from '@/services/syncEngine';
 
 const TOKEN_KEY = 'voxspend-auth-token';
+const REFRESH_TOKEN_KEY = 'voxspend-refresh-token';
 const USER_ID_KEY = 'voxspend-current-user-id';
 const VERIFIED_KEY = 'voxspend-email-verified';
 const EMAIL_KEY = 'voxspend-verification-email';
@@ -46,13 +47,17 @@ export const useAuthStore = defineStore('auth', () => {
       setConvexToken(stored);
       setSyncUser(storedUserId);
     }
+    setRefreshCallback(refreshSession);
     isInitialized.value = true;
   }
 
-  function _storeTokens(t: string) {
+  function _storeTokens(t: string, rt?: string | null) {
     token.value = t;
     localStorage.setItem(TOKEN_KEY, t);
     setConvexToken(t);
+    if (rt) localStorage.setItem(REFRESH_TOKEN_KEY, rt);
+    else localStorage.removeItem(REFRESH_TOKEN_KEY);
+    clearReauthFlag();
     // Clear cached identity so resolveUserId's short-circuit can't return
     // the previous account's id after a switch.
     currentUserId.value = null;
@@ -82,10 +87,12 @@ export const useAuthStore = defineStore('auth', () => {
     verificationEmail.value = null;
     justSentCode.value = false;
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_ID_KEY);
     localStorage.removeItem(VERIFIED_KEY);
     localStorage.removeItem(EMAIL_KEY);
     clearConvexToken();
+    clearReauthFlag();
     setSyncUser(null);
   }
 
@@ -197,15 +204,34 @@ export const useAuthStore = defineStore('auth', () => {
     return requestEmailVerification();
   }
 
+  async function refreshSession(): Promise<boolean> {
+    const storedRefresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!storedRefresh) return false;
+    try {
+      const result = await convex.action(api.auth.signIn, { refreshToken: storedRefresh } as never);
+      const tokens = (result as { tokens?: { token: string; refreshToken?: string } }).tokens;
+      if (!tokens?.token) return false;
+      // Update tokens without resetting user identity (same user, new access token).
+      token.value = tokens.token;
+      localStorage.setItem(TOKEN_KEY, tokens.token);
+      setConvexToken(tokens.token);
+      if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+      clearReauthFlag();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function signIn(email: string, password: string) {
     try {
       const result = await convex.action(api.auth.signIn, {
         provider: 'password',
         params: { email, password, flow: 'signIn' },
       });
-      const tokens = (result as { tokens?: { token: string } }).tokens;
+      const tokens = (result as { tokens?: { token: string; refreshToken?: string } }).tokens;
       if (!tokens?.token) throw new Error('Sign in failed — no token returned.');
-      _storeTokens(tokens.token);
+      _storeTokens(tokens.token, tokens.refreshToken);
     } catch (err) {
       throw toFriendlyError(err, "Couldn't sign you in. Please try again.");
     }
@@ -217,9 +243,9 @@ export const useAuthStore = defineStore('auth', () => {
         provider: 'password',
         params: { email, password, flow: 'signUp' },
       });
-      const tokens = (result as { tokens?: { token: string } }).tokens;
+      const tokens = (result as { tokens?: { token: string; refreshToken?: string } }).tokens;
       if (!tokens?.token) throw new Error('Sign up failed — no token returned.');
-      _storeTokens(tokens.token);
+      _storeTokens(tokens.token, tokens.refreshToken);
     } catch (err) {
       throw toFriendlyError(err, "Couldn't create your account. Please try again.");
     }
