@@ -27,6 +27,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 
 // ---- Public reactive state ----
 export const pendingCount = ref(0);
+export const pendingByTable = ref<Record<string, number>>({ expenses: 0, categories: 0, momoAccounts: 0 });
 export const isDraining = ref(false);
 export const hasErrors = ref(false);
 export const needsReauth = ref(false);
@@ -50,15 +51,19 @@ export function setSyncUser(userId: string | null) {
 export async function refreshPendingCount() {
   if (!currentUserId) {
     pendingCount.value = 0;
+    pendingByTable.value = { expenses: 0, categories: 0, momoAccounts: 0 };
     return;
   }
-  pendingCount.value = await db.syncQueue.where('userId').equals(currentUserId).count();
-  hasErrors.value =
-    (await db.syncQueue
-      .where('userId')
-      .equals(currentUserId)
-      .filter((item) => !!item.lastError && item.attemptCount >= BACKOFF_SCHEDULE_MS.length)
-      .count()) > 0;
+  const items = await db.syncQueue.where('userId').equals(currentUserId).toArray();
+  pendingCount.value = items.length;
+  const byTable: Record<string, number> = { expenses: 0, categories: 0, momoAccounts: 0 };
+  let errored = false;
+  for (const item of items) {
+    byTable[item.table] = (byTable[item.table] ?? 0) + 1;
+    if (item.lastError && item.attemptCount >= BACKOFF_SCHEDULE_MS.length) errored = true;
+  }
+  pendingByTable.value = byTable;
+  hasErrors.value = errored;
 }
 
 /**
