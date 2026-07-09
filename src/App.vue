@@ -1,5 +1,18 @@
 <template>
   <div class="app-shell" :class="{ 'has-nav': showNav }">
+    <!-- Session expired prompt -->
+    <transition name="page">
+      <div v-if="needsReauth" class="update-banner" role="alert">
+        <div class="update-banner__content">
+          <span class="material-symbols-rounded">lock</span>
+          <p>Your session has expired.</p>
+          <button type="button" class="update-banner__btn" @click="handleReauth">
+            Sign in again
+          </button>
+        </div>
+      </div>
+    </transition>
+
     <!-- App update prompt -->
     <transition name="page">
       <div v-if="updateAvailable" class="update-banner" role="alert">
@@ -72,7 +85,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, provide, ref, watch } from 'vue';
-  import { useRoute } from 'vue-router';
+  import { useRoute, useRouter } from 'vue-router';
   import { useRegisterSW } from 'virtual:pwa-register/vue';
   import { useOnlineStatus } from '@/composables/useOnlineStatus';
   import { useThemeStore } from '@/stores/theme';
@@ -86,12 +99,14 @@
     isDraining as syncIsDraining,
     drain as syncDrain,
     startSyncListeners,
+    needsReauth,
   } from '@/services/syncEngine';
   import BottomNav from '@/components/BottomNav.vue';
   import VoiceInputModal from '@/components/VoiceInputModal.vue';
   import ManualInputModal from '@/components/ManualInputModal.vue';
 
   const route = useRoute();
+  const router = useRouter();
   const { isOnline } = useOnlineStatus();
 
   // Initialize stores
@@ -136,6 +151,11 @@
 
   function dismissUpdate() {
     updateAvailable.value = false;
+  }
+
+  async function handleReauth() {
+    await authStore.signOut();
+    await router.push({ name: 'auth' });
   }
 
   const showNav = computed(() => !route.meta.hideNav);
