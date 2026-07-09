@@ -295,6 +295,29 @@ export function clearReauthFlag() {
   needsReauth.value = false;
 }
 
+/**
+ * Reset all permanently-failed queue items for the current user so they are
+ * immediately eligible for the next drain pass. Call this when the user taps
+ * "Retry" on the sync-error banner.
+ */
+export async function retryFailed(): Promise<void> {
+  if (!currentUserId) return;
+  const items = await db.syncQueue
+    .where('userId')
+    .equals(currentUserId)
+    .filter((item) => !!item.lastError && item.attemptCount >= BACKOFF_SCHEDULE_MS.length)
+    .toArray();
+  await Promise.all(
+    items.map((item) =>
+      item.id !== undefined
+        ? db.syncQueue.update(item.id, { attemptCount: 0, lastError: undefined, nextAttemptAt: 0 })
+        : Promise.resolve(),
+    ),
+  );
+  await refreshPendingCount();
+  void drain();
+}
+
 // Re-export so call sites don't need to import dataModel directly.
 export type ServerId<T extends 'expenses' | 'categories' | 'momoAccounts'> = Id<T>;
 
