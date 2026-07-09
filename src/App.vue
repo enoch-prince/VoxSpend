@@ -48,14 +48,25 @@
         </div>
       </div>
       <div
-        v-else-if="isSyncing"
+        v-else-if="syncIsDraining"
         class="offline-banner"
         style="background: var(--primary); color: white"
       >
         <div class="flex items-center justify-center gap-sm">
           <span class="text-secondary material-symbols-rounded icon-sm spin-animation">sync</span>
-          <p class="text-secondary">
-            Syncing {{ totalPending }} change{{ totalPending === 1 ? '' : 's' }}…
+          <p class="text-secondary">Syncing {{ syncSummary }}…</p>
+        </div>
+      </div>
+      <div
+        v-else-if="syncPendingCount > 0 && !needsReauth"
+        class="offline-banner"
+        :style="syncHasErrors ? 'background: var(--danger-soft, #fff1f0); color: var(--danger, #e53e3e)' : ''"
+      >
+        <div class="flex items-center justify-center gap-sm">
+          <span class="material-symbols-rounded icon-sm">{{ syncHasErrors ? 'error_outline' : 'cloud_sync' }}</span>
+          <p>
+            <template v-if="syncHasErrors">{{ syncSummary }} failed to sync</template>
+            <template v-else>{{ syncSummary }} queued to sync</template>
           </p>
         </div>
       </div>
@@ -96,7 +107,9 @@
   import { useVoiceStore } from '@/stores/voice';
   import {
     pendingCount as syncPendingCount,
+    pendingByTable as syncPendingByTable,
     isDraining as syncIsDraining,
+    hasErrors as syncHasErrors,
     drain as syncDrain,
     startSyncListeners,
     needsReauth,
@@ -161,7 +174,16 @@
   const showNav = computed(() => !route.meta.hideNav);
   // Surface combined pending state to the offline banner.
   const totalPending = computed(() => syncPendingCount.value + voiceStore.pendingCount);
-  const isSyncing = computed(() => syncIsDraining.value || totalPending.value > 0);
+
+  // Human-readable breakdown of what's in the Convex sync queue.
+  const syncSummary = computed(() => {
+    const parts: string[] = [];
+    const { expenses, categories, momoAccounts } = syncPendingByTable.value;
+    if (expenses > 0) parts.push(`${expenses} expense${expenses === 1 ? '' : 's'}`);
+    if (categories > 0) parts.push(`${categories} categor${categories === 1 ? 'y' : 'ies'}`);
+    if (momoAccounts > 0) parts.push(`${momoAccounts} MoMo account${momoAccounts === 1 ? '' : 's'}`);
+    return parts.join(', ') || `${syncPendingCount.value} change${syncPendingCount.value === 1 ? '' : 's'}`;
+  });
 
   // Local-first hydration:
   // 1. Resolve the user's _id (online query; falls back to cached value).
