@@ -68,12 +68,18 @@ export const transcribeAndParse = action({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'qwen3.6-27b',
+          // model: 'qwen/qwen3.6-27b',
+          model: 'openai/gpt-oss-120b',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: transcript },
           ],
           response_format: { type: 'json_object' },
+          temperature: 0.6,
+          max_completion_tokens: 8192,
+          top_p: 0.95,
+          // reasoning_effort: "default", // for qwen/qwen3.6-27b, but not for openai/gpt-oss-120b
+          reasoning_effort: "medium", // for openai/gpt-oss-120b, but not for qwen/qwen3.6-27b
         }),
       });
 

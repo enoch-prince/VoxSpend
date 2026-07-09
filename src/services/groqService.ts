@@ -63,13 +63,16 @@ export async function parseExpense(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'qwen3.6-27b',
+      // model: 'qwen/qwen3.6-27b',
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: transcript },
       ],
-      temperature: 0.1,
-      max_tokens: 256,
+      temperature: 0.6,
+      max_completion_tokens: 1024,
+      top_p: 0.95,
+      reasoning_effort: "medium", // for openai/gpt-oss-120b, but not for qwen/qwen3.6-27b
       response_format: { type: 'json_object' },
     }),
   });
