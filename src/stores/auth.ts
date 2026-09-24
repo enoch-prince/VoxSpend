@@ -31,18 +31,14 @@ export const useAuthStore = defineStore('auth', () => {
   function initialize() {
     const stored = localStorage.getItem(TOKEN_KEY);
     const storedUserId = localStorage.getItem(USER_ID_KEY);
-    const storedVerified = localStorage.getItem(VERIFIED_KEY);
     const storedEmail = localStorage.getItem(EMAIL_KEY);
 
     if (stored) {
       token.value = stored;
       currentUserId.value = storedUserId;
-      emailVerified.value =
-        storedVerified === 'true'
-          ? true
-          : storedVerified === 'false'
-          ? false
-          : null;
+      // A cached verification result is only a hint. Re-check the session
+      // after reload before allowing account/data hydration to begin.
+      emailVerified.value = null;
       verificationEmail.value = storedEmail;
       setConvexToken(stored);
       setSyncUser(storedUserId);

@@ -29,7 +29,11 @@
 
       <!-- Donut Chart -->
       <div class="neo-card mb-lg" v-if="breakdown.length > 0">
-        <DonutChart :breakdown="breakdown" :total="monthTotal" />
+        <DonutChart
+          :breakdown="breakdown"
+          :total="monthTotal"
+          :currency="accountsStore.activeAccount?.currency ?? 'GHS'"
+        />
       </div>
 
       <div v-else class="neo-card-flat mb-lg" style="padding: 2rem; text-align: center">
@@ -52,7 +56,7 @@
             </p>
           </div>
           <span class="text-xs text-tertiary">{{ cat.percentage }}%</span>
-          <span class="text-md font-bold">GH₵ {{ cat.total.toFixed(2) }}</span>
+          <span class="text-md font-bold">{{ formatCurrency(cat.total, accountsStore.activeAccount?.currency ?? 'GHS') }}</span>
         </div>
       </div>
 
@@ -67,9 +71,12 @@
   import { useCategoriesStore } from '@/stores/categories';
   import DonutChart from '@/components/DonutChart.vue';
   import type { CategoryBreakdown } from '@/types';
+  import { useAccountsStore } from '@/stores/accounts';
+  import { formatCurrency } from '@/utils/currency';
 
   const expensesStore = useExpensesStore();
   const categoriesStore = useCategoriesStore();
+  const accountsStore = useAccountsStore();
 
   const now = new Date();
   const selectedMonth = ref(now.getMonth());

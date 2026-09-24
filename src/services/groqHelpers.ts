@@ -16,7 +16,7 @@ export function buildTranscriptionPrompt(): string {
   return 'GHS, Cedis, Cedi, Pesewas, MoMo, MTN, Telecel, AirtelTigo, Waakye, Trotro, Troski, Kelewele, Kenkey, Papaye, Melcom, Chop, Chale, Abeg, Kraa, Mo.';
 }
 
-export function buildGroqSystemPrompt(categories: string[]): string {
+export function buildGroqSystemPrompt(categories: string[], preferredCurrency = 'GHS'): string {
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
   const yesterday = new Date(today);
@@ -27,8 +27,8 @@ export function buildGroqSystemPrompt(categories: string[]): string {
   return `You are a financial data extractor for Ghanaian users. Parse the voice transcript in the user message and return one record per expense or income item mentioned.
 
 CURRENCY & AMOUNTS
-- Default currency: GHS. "Cedis", "CDs", "gunna CDs" all mean GHS.
-- Pesewas: "50 pesewas" or "50p" = 0.50 GHS.
+- Default currency: ${preferredCurrency}. Use an explicitly spoken currency instead.
+- "Cedis", "CDs", and "gunna CDs" mean GHS; pesewas are converted to GHS.
 - Word-form numbers: "a hundred and fifty thousand" = 150000.
 - "MoMo" = Mobile Money transfer.
 
@@ -51,10 +51,10 @@ OUTPUT RULES
 - note: any extra context from the speech not captured by the other fields.
 
 Return ONLY valid JSON with no markdown or explanation:
-{"results":[{"amount":number,"currency":"GHS","type":"expense"|"income","category":"string","merchant":"string","note":"string","date":"YYYY-MM-DD"}]}`;
+{"results":[{"amount":number,"currency":"${preferredCurrency}","type":"expense"|"income","category":"string","merchant":"string","note":"string","date":"YYYY-MM-DD"}]}`;
 }
 
-export function parseGroqResponse(data: any): GroqParseResponse {
+export function parseGroqResponse(data: any, preferredCurrency = 'GHS'): GroqParseResponse {
   const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text;
   if (!content) {
     throw new Error('No content in LLM response');
@@ -71,7 +71,7 @@ export function parseGroqResponse(data: any): GroqParseResponse {
   return {
     results: results.map((item: any) => ({
       amount: Math.abs(Number(item.amount) || 0),
-      currency: item.currency || 'GHS',
+      currency: item.currency || preferredCurrency,
       type: item.type === 'income' ? 'income' : 'expense',
       category: item.category || 'Other',
       merchant: item.merchant || 'Unknown',

@@ -45,9 +45,10 @@ export async function transcribeAudio(blob: Blob, apiKey: string): Promise<strin
 export async function parseExpense(
   transcript: string,
   apiKey: string,
-  categories: string[]
+  categories: string[],
+  preferredCurrency = 'GHS',
 ): Promise<{ results: ParsedExpense[] }> {
-  const systemPrompt = buildGroqSystemPrompt(categories);
+  const systemPrompt = buildGroqSystemPrompt(categories, preferredCurrency);
 
   if (!apiKey || apiKey.trim() === '') {
     throw new Error('Groq API Key is missing. Please add it in Settings.');
@@ -80,7 +81,7 @@ export async function parseExpense(
   }
 
   const data = await response.json();
-  const parsed = parseGroqResponse(data);
+  const parsed = parseGroqResponse(data, preferredCurrency);
 
   return {
     results: parsed.results.map((item) => ({

@@ -12,6 +12,7 @@ interface ReplicatedRow {
   id: string;
   serverId?: string;
   userId: string;
+  accountId?: string;
   synced: boolean;
   clientId: string;
 }
@@ -70,6 +71,7 @@ export type SyncAction = 'create' | 'update' | 'delete';
 export interface SyncQueueItem {
   id?: number;
   userId: string;
+  accountId?: string;
   table: SyncTable;
   action: SyncAction;
   entityId: string; // local Dexie id
@@ -84,8 +86,21 @@ export interface SyncQueueItem {
 
 export interface PendingVoiceNote {
   id?: number;
+  userId?: string;
+  accountId?: string;
   audio: Blob;
   createdAt: string;
+}
+
+export type CurrencyCode = 'GHS' | 'USD' | 'EUR' | 'GBP';
+
+export interface ExpenseAccount {
+  id: string;
+  name: string;
+  currency: CurrencyCode;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
 }
 
 export interface CategoryBreakdown {

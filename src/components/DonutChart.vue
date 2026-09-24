@@ -4,7 +4,7 @@
       <Doughnut :data="chartData" :options="chartOptions" />
       <div class="donut-chart__center">
         <p class="text-xs text-secondary">Total</p>
-        <p class="text-xl font-extrabold">GH₵ {{ formattedTotal }}</p>
+        <p class="text-xl font-extrabold">{{ formattedTotal }}</p>
       </div>
     </div>
   </div>
@@ -15,17 +15,17 @@
   import { Doughnut } from 'vue-chartjs';
   import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
   import type { CategoryBreakdown } from '@/types';
+  import { formatCurrency } from '@/utils/currency';
 
   ChartJS.register(ArcElement, Tooltip, Legend);
 
   const props = defineProps<{
     breakdown: CategoryBreakdown[];
     total: number;
+    currency: string;
   }>();
 
-  const formattedTotal = computed(() =>
-    props.total.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  );
+  const formattedTotal = computed(() => formatCurrency(props.total, props.currency));
 
   const chartData = computed(() => ({
     labels: props.breakdown.map((b) => b.category),
@@ -51,7 +51,7 @@
         padding: 10,
         cornerRadius: 8,
         callbacks: {
-          label: (ctx: any) => ` GH₵ ${ctx.parsed.toFixed(2)}`,
+          label: (ctx: any) => ` ${formatCurrency(ctx.parsed, props.currency)}`,
         },
       },
     },

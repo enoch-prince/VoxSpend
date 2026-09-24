@@ -21,3 +21,11 @@ export async function requireVerifiedUser(ctx: any) {
 
   return userId;
 }
+
+export async function requireOwnedAccount(ctx: any, userId: string, accountId: string) {
+  const account = await ctx.db.get('expenseAccounts', accountId);
+  if (!account || account.userId !== userId || account.archivedAt) {
+    throw new Error('Account not found.');
+  }
+  return account;
+}

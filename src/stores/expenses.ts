@@ -14,6 +14,7 @@ import { convex, api } from '@/services/convexClient';
 import { db, generateId, generateClientId, now } from '@/services/database';
 import { enqueue, drain } from '@/services/syncEngine';
 import { useAuthStore } from './auth';
+import { useAccountsStore } from './accounts';
 import { toFriendlyError } from '@/utils/errors';
 import type { Expense, CategoryBreakdown, DayGroup } from '@/types';
 import { useCategoriesStore } from './categories';
@@ -45,22 +46,36 @@ export const useExpensesStore = defineStore('expenses', () => {
     return id;
   }
 
+  function currentAccountId(): string {
+    const id = useAccountsStore().activeAccountId;
+    if (!id) throw new Error('No active expense account');
+    return id;
+  }
+
+  function currentCurrency(): string {
+    return useAccountsStore().activeAccount?.currency ?? 'GHS';
+  }
+
   // ---- Computed (unchanged) ----
   const totalExpenses = computed(() =>
-    expenses.value.filter((e) => e.type === 'expense').reduce((sum, e) => sum + e.amount, 0),
+    currencyExpenses.value.filter((e) => e.type === 'expense').reduce((sum, e) => sum + e.amount, 0),
   );
 
   const totalIncome = computed(() =>
-    expenses.value.filter((e) => e.type === 'income').reduce((sum, e) => sum + e.amount, 0),
+    currencyExpenses.value.filter((e) => e.type === 'income').reduce((sum, e) => sum + e.amount, 0),
   );
 
   const balance = computed(() => totalIncome.value - totalExpenses.value);
+
+  const currencyExpenses = computed(() =>
+    expenses.value.filter((expense) => expense.currency === currentCurrency()),
+  );
 
   const currentMonthExpenses = computed(() => {
     const d = new Date();
     const year = d.getFullYear();
     const month = d.getMonth();
-    return expenses.value.filter((e) => {
+    return currencyExpenses.value.filter((e) => {
       const ed = new Date(e.date);
       return ed.getFullYear() === year && ed.getMonth() === month;
     });
@@ -142,7 +157,12 @@ export const useExpensesStore = defineStore('expenses', () => {
     loading.value = true;
     try {
       const userId = currentUserId();
-      expenses.value = await db.expenses.where('userId').equals(userId).reverse().sortBy('date');
+      const accountId = currentAccountId();
+      expenses.value = await db.expenses
+        .where('[userId+accountId]')
+        .equals([userId, accountId])
+        .reverse()
+        .sortBy('date');
       if (navigator.onLine) {
         const lastReconcile = Number(localStorage.getItem(RECONCILE_KEY) ?? 0);
         if (Date.now() - lastReconcile > RECONCILE_TTL_MS) {
@@ -165,12 +185,16 @@ export const useExpensesStore = defineStore('expenses', () => {
    */
   async function reconcileFromServer() {
     const userId = currentUserId();
-    const serverDocs = (await convex.query(api.expenses.list)) as ConvexExpense[];
+    const accountId = currentAccountId();
+    const serverDocs = (await convex.query(api.expenses.list, { accountId: accountId as never })) as ConvexExpense[];
 
     // Index local rows by clientId for quick lookup. clientId is the
     // stable cross-device identifier; serverId fills in after first sync.
     const localByClientId = new Map<string, Expense>();
-    const localRows = await db.expenses.where('userId').equals(userId).toArray();
+    const localRows = await db.expenses
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .toArray();
     for (const row of localRows) localByClientId.set(row.clientId, row);
 
     for (const doc of serverDocs) {
@@ -186,6 +210,7 @@ export const useExpensesStore = defineStore('expenses', () => {
           id: generateId(),
           serverId: doc._id,
           userId,
+          accountId,
           synced: true,
           clientId: doc.clientId,
           amount: doc.amount,
@@ -226,21 +251,27 @@ export const useExpensesStore = defineStore('expenses', () => {
     // NOTE: cross-device deletes (server has fewer rows than local synced
     // set) are not handled in MVP. Tombstones are a follow-up.
 
-    expenses.value = await db.expenses.where('userId').equals(userId).reverse().sortBy('date');
+    expenses.value = await db.expenses
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .reverse()
+      .sortBy('date');
   }
 
   // ---- Actions (optimistic + enqueue) ----
 
   async function addExpense(
-    data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'userId' | 'clientId' | 'serverId'>,
+    data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'userId' | 'accountId' | 'clientId' | 'serverId'>,
   ) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const ts = now();
     const row: Expense = {
       ...data,
       id: generateId(),
       clientId: generateClientId(),
       userId,
+      accountId,
       synced: false,
       createdAt: ts,
       updatedAt: ts,
@@ -249,6 +280,7 @@ export const useExpensesStore = defineStore('expenses', () => {
       await db.expenses.add(row);
       await enqueue({
         userId,
+        accountId,
         table: 'expenses',
         action: 'create',
         entityId: row.id,
@@ -275,6 +307,7 @@ export const useExpensesStore = defineStore('expenses', () => {
 
   async function updateExpense(id: string, updates: Partial<Expense>) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const updatedAt = now();
     // Strip fields the sync layer manages so they can't be clobbered.
     const {
@@ -282,6 +315,7 @@ export const useExpensesStore = defineStore('expenses', () => {
       synced: _s,
       createdAt: _c,
       userId: _u,
+      accountId: _a,
       clientId: _cid,
       serverId: _sid,
       ...mutable
@@ -292,6 +326,7 @@ export const useExpensesStore = defineStore('expenses', () => {
       await db.expenses.update(id, { ...mutable, updatedAt, synced: false });
       await enqueue({
         userId,
+        accountId,
         table: 'expenses',
         action: 'update',
         entityId: id,
@@ -310,6 +345,7 @@ export const useExpensesStore = defineStore('expenses', () => {
 
   async function deleteExpense(id: string) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     try {
       const existing = await db.expenses.get(id);
       if (!existing) {
@@ -319,6 +355,7 @@ export const useExpensesStore = defineStore('expenses', () => {
       await db.expenses.delete(id);
       await enqueue({
         userId,
+        accountId,
         table: 'expenses',
         action: 'delete',
         entityId: id,
@@ -338,13 +375,15 @@ export const useExpensesStore = defineStore('expenses', () => {
    */
   async function attributeLegacyRows() {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const orphans = await db.expenses.where('userId').equals('').toArray();
     if (orphans.length === 0) return;
     for (const row of orphans) {
       const clientId = row.clientId || generateClientId();
-      await db.expenses.update(row.id, { userId, clientId, synced: false });
+      await db.expenses.update(row.id, { userId, accountId, clientId, synced: false });
       await enqueue({
         userId,
+        accountId,
         table: 'expenses',
         action: 'create',
         entityId: row.id,
@@ -375,6 +414,10 @@ export const useExpensesStore = defineStore('expenses', () => {
       const d = new Date(e.date);
       return d.getFullYear() === year && d.getMonth() === month;
     });
+  }
+
+  function clear() {
+    expenses.value = [];
   }
 
   function exportCSV(): string {
@@ -408,6 +451,7 @@ export const useExpensesStore = defineStore('expenses', () => {
 
   return {
     expenses,
+    currencyExpenses,
     loading,
     totalExpenses,
     totalIncome,
@@ -426,6 +470,7 @@ export const useExpensesStore = defineStore('expenses', () => {
     attributeLegacyRows,
     getExpenseById,
     getExpensesForMonth,
+    clear,
     exportCSV,
     downloadCSV,
   };

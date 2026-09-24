@@ -17,6 +17,7 @@
         :balance="expensesStore.balance"
         :income="expensesStore.currentMonthIncome"
         :expenses="expensesStore.currentMonthTotal"
+        :currency="userStoreCurrency"
         class="mb-lg"
       />
 
@@ -94,7 +95,7 @@
             <div class="cat-dot" :style="{ background: cat.color }"></div>
             <span class="text-sm font-semibold flex-1">{{ cat.category }}</span>
             <span class="text-xs text-tertiary">{{ cat.percentage }}%</span>
-            <span class="text-sm font-bold">GH₵ {{ cat.total.toFixed(2) }}</span>
+            <span class="text-sm font-bold">{{ formatCurrency(cat.total, userStoreCurrency) }}</span>
           </div>
         </div>
       </section>
@@ -109,13 +110,17 @@
   import { computed, inject } from 'vue';
   import { useExpensesStore } from '@/stores/expenses';
   import { useUserStore } from '@/stores/user';
+  import { useAccountsStore } from '@/stores/accounts';
   import { useVoiceStore } from '@/stores/voice';
   import BalanceCard from '@/components/BalanceCard.vue';
   import ExpenseItem from '@/components/ExpenseItem.vue';
+  import { formatCurrency } from '@/utils/currency';
 
   const expensesStore = useExpensesStore();
   const userStore = useUserStore();
   const voiceStore = useVoiceStore();
+  const accountsStore = useAccountsStore();
+  const userStoreCurrency = computed(() => accountsStore.activeAccount?.currency ?? 'GHS');
 
   const greeting = computed(() => {
     const h = new Date().getHours();

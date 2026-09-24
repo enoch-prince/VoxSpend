@@ -118,6 +118,7 @@
   import { useOnlineStatus } from '@/composables/useOnlineStatus';
   import { useThemeStore } from '@/stores/theme';
   import { useAuthStore } from '@/stores/auth';
+  import { useAccountsStore } from '@/stores/accounts';
   import { useCategoriesStore } from '@/stores/categories';
   import { useExpensesStore } from '@/stores/expenses';
   import { useMomoStore } from '@/stores/momo';
@@ -144,6 +145,7 @@
   const themeStore = useThemeStore();
   void themeStore; // side-effect: applies theme
   const authStore = useAuthStore();
+  const accountsStore = useAccountsStore();
   const categoriesStore = useCategoriesStore();
   const expensesStore = useExpensesStore();
   const momoStore = useMomoStore();
@@ -210,28 +212,56 @@
   // 3. Hydrate every store from Dexie (instant) — they kick off background
   //    server reconciles themselves.
   // 4. Drain the sync queue.
-  async function initializeUserData() {
-    await authStore.resolveUserId();
-    if (!authStore.currentUserId) return; // offline + never signed in here before
+  let initializingUserData = false;
+  let hydratedAccountId: string | null = null;
+  let accountHydrationVersion = 0;
 
-    const attributed = localStorage.getItem('voxspend-attributed');
-    if (!attributed) {
-      await expensesStore.attributeLegacyRows();
-      await categoriesStore.attributeLegacyRows();
-      await momoStore.attributeLegacyRows();
-      localStorage.setItem('voxspend-attributed', '1');
-    }
+  async function hydrateActiveAccount(version = ++accountHydrationVersion) {
+    accountsStore.error = '';
+    categoriesStore.clear();
+    expensesStore.clear();
+    momoStore.clear();
+    await accountsStore.bindLegacyRows();
+    if (version !== accountHydrationVersion) return;
 
     await Promise.all([
       categoriesStore.hydrate(),
       expensesStore.hydrate(),
       momoStore.hydrate(),
     ]);
+    if (version !== accountHydrationVersion) return;
 
     await voiceStore.updatePendingCount();
     if (isOnline.value) {
       voiceStore.syncPendingNotes();
       void syncDrain();
+    }
+    hydratedAccountId = accountsStore.activeAccountId;
+  }
+
+  async function initializeUserData() {
+    initializingUserData = true;
+    await authStore.resolveUserId();
+    if (!authStore.currentUserId) {
+      initializingUserData = false;
+      return; // offline + never signed in here before
+    }
+
+    await accountsStore.load();
+
+    const attributedKey = `voxspend-attributed:${authStore.currentUserId}`;
+    const attributed = localStorage.getItem(attributedKey);
+    if (!attributed) {
+      await expensesStore.attributeLegacyRows();
+      await categoriesStore.attributeLegacyRows();
+      await momoStore.attributeLegacyRows();
+      localStorage.setItem(attributedKey, '1');
+    }
+
+    try {
+      await hydrateActiveAccount();
+    } finally {
+      initializingUserData = false;
     }
   }
 
@@ -254,9 +284,22 @@
       } else if (!ready) {
         // Sign-out or verification revoked — allow a re-hydrate on next ready.
         didHydrate = false;
+        hydratedAccountId = null;
+        accountsStore.clear();
+        categoriesStore.clear();
+        expensesStore.clear();
+        momoStore.clear();
       }
     },
     { immediate: true },
+  );
+
+  watch(
+    () => accountsStore.activeAccountId,
+    (accountId) => {
+      if (!accountId || !didHydrate || initializingUserData || accountId === hydratedAccountId) return;
+      void hydrateActiveAccount();
+    },
   );
 
   onMounted(() => {

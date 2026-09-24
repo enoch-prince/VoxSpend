@@ -19,7 +19,7 @@
       :class="expense.type === 'income' ? 'amount--positive' : 'amount--negative'"
     >
       <span class="font-bold text-md">
-        {{ expense.type === 'income' ? '+' : '-' }}GH₵{{ expense.amount.toFixed(2) }}
+        {{ expense.type === 'income' ? '+' : '-' }}{{ formatCurrency(expense.amount, expense.currency) }}
       </span>
     </div>
   </div>
@@ -29,6 +29,7 @@
   import { computed } from 'vue';
   import { useCategoriesStore } from '@/stores/categories';
   import type { Expense } from '@/types';
+  import { formatCurrency } from '@/utils/currency';
 
   const props = defineProps<{
     expense: Expense;

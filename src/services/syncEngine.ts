@@ -1,60 +1,62 @@
 // ============================================
 // Sync Engine — Dexie → Convex write-behind queue
 // ============================================
-//
-// Architecture:
-//   - Stores write to Dexie + enqueue a SyncQueueItem; UI updates optimistically.
-//   - This engine drains the queue in FIFO order, calling the matching
-//     Convex mutation for each item.
-//   - Idempotency: every mutation carries a `clientId` UUID. The Convex
-//     side looks up by (userId, clientId) so a retry after a lost ACK
-//     resolves to the same row instead of inserting a duplicate.
-//   - Cross-tab coordination: drain runs inside a Web Lock named
-//     `voxspend-sync-<userId>`. Only one tab at a time holds the lock;
-//     the others wait. With clientId-based idempotency, even if two tabs
-//     race a single drain (lock unavailable, falling back to in-memory
-//     mutex), no duplicates can occur.
-//   - Backoff: network failures schedule a retry at `nextAttemptAt`
-//     (1s → 5s → 30s → 5min cap). Validation errors freeze the item
-//     with `lastError` set and stop auto-retrying.
-//   - Auth (401) errors stop the whole drain and emit `needsReauth`.
 
 import { ref } from 'vue';
 import { db } from './database';
 import { convex, api } from './convexClient';
-import type { SyncQueueItem, SyncTable, SyncAction } from '@/types';
+import type { SyncQueueItem, SyncTable } from '@/types';
 import type { Id } from '../../convex/_generated/dataModel';
 
-// ---- Public reactive state ----
 export const pendingCount = ref(0);
 export const pendingByTable = ref<Record<string, number>>({ expenses: 0, categories: 0, momoAccounts: 0 });
 export const isDraining = ref(false);
 export const hasErrors = ref(false);
 export const needsReauth = ref(false);
 
-// ---- Internals ----
 const BACKOFF_SCHEDULE_MS = [1_000, 5_000, 30_000, 60_000, 300_000];
 let inMemoryDraining = false;
 let heartbeat: ReturnType<typeof setInterval> | null = null;
 let currentUserId: string | null = null;
-let _refreshTokenCallback: (() => Promise<boolean>) | null = null;
+let currentAccountId: string | null = null;
+let refreshTokenCallback: (() => Promise<boolean>) | null = null;
 
-export function setRefreshCallback(cb: () => Promise<boolean>): void {
-  _refreshTokenCallback = cb;
+export function setRefreshCallback(callback: () => Promise<boolean>): void {
+  refreshTokenCallback = callback;
 }
 
-export function setSyncUser(userId: string | null) {
+export function setSyncUser(userId: string | null): void {
   currentUserId = userId;
+  if (!userId) currentAccountId = null;
   void refreshPendingCount();
 }
 
-export async function refreshPendingCount() {
-  if (!currentUserId) {
+export function setSyncAccount(accountId: string | null): void {
+  currentAccountId = accountId;
+  void refreshPendingCount();
+}
+
+function currentQueueRange() {
+  if (!currentUserId || !currentAccountId) return null;
+  return {
+    lower: [currentUserId, currentAccountId, ''] as [string, string, string],
+    upper: [currentUserId, currentAccountId, '\uffff'] as [string, string, string],
+  };
+}
+
+export async function refreshPendingCount(): Promise<void> {
+  const range = currentQueueRange();
+  if (!range) {
     pendingCount.value = 0;
     pendingByTable.value = { expenses: 0, categories: 0, momoAccounts: 0 };
+    hasErrors.value = false;
     return;
   }
-  const items = await db.syncQueue.where('userId').equals(currentUserId).toArray();
+
+  const items = await db.syncQueue
+    .where('[userId+accountId+createdAt]')
+    .between(range.lower, range.upper)
+    .toArray();
   pendingCount.value = items.length;
   const byTable: Record<string, number> = { expenses: 0, categories: 0, momoAccounts: 0 };
   let errored = false;
@@ -66,9 +68,6 @@ export async function refreshPendingCount() {
   hasErrors.value = errored;
 }
 
-/**
- * Append one work item to the queue. Triggers a drain in the background.
- */
 export async function enqueue(
   item: Omit<SyncQueueItem, 'id' | 'attemptCount' | 'createdAt'>,
 ): Promise<void> {
@@ -81,30 +80,22 @@ export async function enqueue(
   void drain();
 }
 
-/**
- * Drain ready items in FIFO order. Safe to call concurrently — wrapped in
- * a Web Lock so only one tab drains at a time.
- */
 export async function drain(): Promise<void> {
-  if (!currentUserId) return;
-  if (!navigator.onLine) return;
-  if (inMemoryDraining) return;
+  if (!currentUserId || !currentAccountId || !navigator.onLine || inMemoryDraining) return;
 
   const userId = currentUserId;
+  const accountId = currentAccountId;
   const run = async () => {
     inMemoryDraining = true;
     isDraining.value = true;
     try {
-      // Loop until no ready items remain. Each pass picks up newly enqueued
-      // items that landed mid-drain.
       let processed = 0;
-      const MAX_PER_BATCH = 100; // safety cap
-      while (processed < MAX_PER_BATCH) {
-        const next = await pickNextReady(userId);
+      while (processed < 100) {
+        const next = await pickNextReady(userId, accountId);
         if (!next) break;
         const handled = await processItem(next);
         processed += 1;
-        if (!handled) break; // auth error or stop signal
+        if (!handled) break;
       }
     } finally {
       inMemoryDraining = false;
@@ -115,9 +106,8 @@ export async function drain(): Promise<void> {
 
   if ('locks' in navigator && navigator.locks?.request) {
     try {
-      await navigator.locks.request(`voxspend-sync-${userId}`, { mode: 'exclusive' }, run);
+      await navigator.locks.request(`voxspend-sync-${userId}-${accountId}`, { mode: 'exclusive' }, run);
     } catch {
-      // Lock API unavailable mid-flight — fall back to bare drain.
       await run();
     }
   } else {
@@ -125,105 +115,52 @@ export async function drain(): Promise<void> {
   }
 }
 
-async function pickNextReady(userId: string): Promise<SyncQueueItem | undefined> {
-  const now = Date.now();
-  // FIFO by createdAt, skipping items whose backoff hasn't elapsed.
+async function pickNextReady(userId: string, accountId: string): Promise<SyncQueueItem | undefined> {
   const items = await db.syncQueue
-    .where('[userId+createdAt]')
-    .between([userId, ''], [userId, '￿'])
+    .where('[userId+accountId+createdAt]')
+    .between([userId, accountId, ''], [userId, accountId, '\uffff'])
     .sortBy('createdAt');
-  return items.find((i) => (i.nextAttemptAt ?? 0) <= now);
+  return items.find((item) => (item.nextAttemptAt ?? 0) <= Date.now());
 }
 
-// Returns true if drain should keep going, false to stop (auth error, etc.)
 async function processItem(item: SyncQueueItem): Promise<boolean> {
   try {
     const serverId = await runMutation(item);
-    // On a successful create, the server returns the new _id. Patch it
-    // into the local row so subsequent reconciles know it's already synced.
     if (item.action === 'create' && serverId) {
       await db.table(item.table).update(item.entityId, { serverId, synced: true });
-    } else {
-      // For updates, mark the row as synced. Deletes already removed the row.
-      if (item.action === 'update') {
-        await db.table(item.table).update(item.entityId, { synced: true });
-      }
+    } else if (item.action === 'update') {
+      await db.table(item.table).update(item.entityId, { synced: true });
     }
     if (item.id !== undefined) await db.syncQueue.delete(item.id);
     return true;
   } catch (err) {
-    return await handleFailure(item, err);
+    return handleFailure(item, err);
   }
 }
 
 async function runMutation(item: SyncQueueItem): Promise<string | undefined> {
-  const { table, action, clientId, payload } = item;
-  if (table === 'expenses') return runExpenseMutation(action, clientId, payload);
-  if (table === 'categories') return runCategoryMutation(action, clientId, payload);
-  if (table === 'momoAccounts') return runMomoMutation(action, clientId, payload);
+  const { table, action, clientId, accountId, payload } = item;
+  const scopedPayload = accountId ? { accountId, ...payload } : payload;
+
+  if (table === 'expenses') {
+    if (action === 'create') return (await convex.mutation(api.expenses.upsert, { clientId, ...scopedPayload } as never)) as string;
+    if (action === 'update') await convex.mutation(api.expenses.update, { clientId, ...scopedPayload } as never);
+    if (action === 'delete') await convex.mutation(api.expenses.remove, { clientId, ...(accountId ? { accountId } : {}) } as never);
+    return;
+  }
+  if (table === 'categories') {
+    if (action === 'create') return (await convex.mutation(api.categories.upsert, { clientId, ...scopedPayload } as never)) as string;
+    if (action === 'update') await convex.mutation(api.categories.update, { clientId, ...scopedPayload } as never);
+    if (action === 'delete') await convex.mutation(api.categories.remove, { clientId, ...(accountId ? { accountId } : {}) } as never);
+    return;
+  }
+  if (table === 'momoAccounts') {
+    if (action === 'create') return (await convex.mutation(api.momoAccounts.upsert, { clientId, ...scopedPayload } as never)) as string;
+    if (action === 'update') await convex.mutation(api.momoAccounts.update, { clientId, ...scopedPayload } as never);
+    if (action === 'delete') await convex.mutation(api.momoAccounts.remove, { clientId, ...(accountId ? { accountId } : {}) } as never);
+    return;
+  }
   throw new Error(`Unknown sync table: ${table as string}`);
-}
-
-// Why the `as never` casts: the syncEngine treats payloads generically
-// (Record<string, unknown>) so it can drive any table. The Convex SDK's
-// per-mutation arg types are strict — we trust the calling store to have
-// supplied a shape-compatible payload at enqueue time.
-
-async function runExpenseMutation(
-  action: SyncAction,
-  clientId: string,
-  payload: Record<string, unknown>,
-): Promise<string | undefined> {
-  if (action === 'create') {
-    const id = await convex.mutation(api.expenses.upsert, { clientId, ...payload } as never);
-    return id as unknown as string;
-  }
-  if (action === 'update') {
-    await convex.mutation(api.expenses.update, { clientId, ...payload } as never);
-    return;
-  }
-  if (action === 'delete') {
-    await convex.mutation(api.expenses.remove, { clientId });
-    return;
-  }
-}
-
-async function runCategoryMutation(
-  action: SyncAction,
-  clientId: string,
-  payload: Record<string, unknown>,
-): Promise<string | undefined> {
-  if (action === 'create') {
-    const id = await convex.mutation(api.categories.upsert, { clientId, ...payload } as never);
-    return id as unknown as string;
-  }
-  if (action === 'update') {
-    await convex.mutation(api.categories.update, { clientId, ...payload } as never);
-    return;
-  }
-  if (action === 'delete') {
-    await convex.mutation(api.categories.remove, { clientId });
-    return;
-  }
-}
-
-async function runMomoMutation(
-  action: SyncAction,
-  clientId: string,
-  payload: Record<string, unknown>,
-): Promise<string | undefined> {
-  if (action === 'create') {
-    const id = await convex.mutation(api.momoAccounts.upsert, { clientId, ...payload } as never);
-    return id as unknown as string;
-  }
-  if (action === 'update') {
-    await convex.mutation(api.momoAccounts.update, { clientId, ...payload } as never);
-    return;
-  }
-  if (action === 'delete') {
-    await convex.mutation(api.momoAccounts.remove, { clientId });
-    return;
-  }
 }
 
 async function handleFailure(item: SyncQueueItem, err: unknown): Promise<boolean> {
@@ -232,12 +169,11 @@ async function handleFailure(item: SyncQueueItem, err: unknown): Promise<boolean
   const isNetwork = /network|failed to fetch|fetch.*failed|offline|timeout/i.test(message);
 
   if (isAuth) {
-    if (_refreshTokenCallback) {
+    if (refreshTokenCallback) {
       try {
-        const refreshed = await _refreshTokenCallback();
-        if (refreshed) return true; // new token acquired — let the drain retry this item
+        if (await refreshTokenCallback()) return true;
       } catch {
-        // refresh itself failed; fall through to stop
+        // Fall through to the re-auth state.
       }
     }
     needsReauth.value = true;
@@ -247,15 +183,14 @@ async function handleFailure(item: SyncQueueItem, err: unknown): Promise<boolean
         lastError: message,
       });
     }
-    return false; // stop the drain
+    return false;
   }
 
   const lastBackoff = BACKOFF_SCHEDULE_MS[BACKOFF_SCHEDULE_MS.length - 1];
   const nextAttempt =
     isNetwork || item.attemptCount < BACKOFF_SCHEDULE_MS.length
       ? Date.now() + (BACKOFF_SCHEDULE_MS[item.attemptCount] ?? lastBackoff)
-      : Date.now() + 24 * 60 * 60 * 1000; // park failures for 24h after exhausting backoff
-
+      : Date.now() + 24 * 60 * 60 * 1000;
   if (item.id !== undefined) {
     await db.syncQueue.update(item.id, {
       attemptCount: item.attemptCount + 1,
@@ -263,48 +198,32 @@ async function handleFailure(item: SyncQueueItem, err: unknown): Promise<boolean
       nextAttemptAt: nextAttempt,
     });
   }
-  // Keep draining other items — this one is rescheduled.
   return !isNetwork;
 }
 
-// ---- Lifecycle helpers ----
-
-export function startSyncListeners() {
+export function startSyncListeners(): void {
   if (typeof window === 'undefined') return;
   window.addEventListener('online', () => void drain());
-  // Heartbeat: catch backoff-scheduled items whose nextAttemptAt has elapsed
-  // while no other trigger fired.
-  if (!heartbeat) {
-    heartbeat = setInterval(() => void drain(), 60_000);
-  }
+  if (!heartbeat) heartbeat = setInterval(() => void drain(), 60_000);
 }
 
-export function stopSyncListeners() {
+export function stopSyncListeners(): void {
   if (heartbeat) {
     clearInterval(heartbeat);
     heartbeat = null;
   }
 }
 
-/**
- * Used by stores when the user signs out — wipe pending state so the next
- * user starts fresh. Local rows are kept on disk per the design (offline
- * resume for the same user across sign-out/sign-in cycles).
- */
-export function clearReauthFlag() {
+export function clearReauthFlag(): void {
   needsReauth.value = false;
 }
 
-/**
- * Reset all permanently-failed queue items for the current user so they are
- * immediately eligible for the next drain pass. Call this when the user taps
- * "Retry" on the sync-error banner.
- */
 export async function retryFailed(): Promise<void> {
-  if (!currentUserId) return;
+  const range = currentQueueRange();
+  if (!range) return;
   const items = await db.syncQueue
-    .where('userId')
-    .equals(currentUserId)
+    .where('[userId+accountId+createdAt]')
+    .between(range.lower, range.upper)
     .filter((item) => !!item.lastError && item.attemptCount >= BACKOFF_SCHEDULE_MS.length)
     .toArray();
   await Promise.all(
@@ -318,11 +237,5 @@ export async function retryFailed(): Promise<void> {
   void drain();
 }
 
-// Re-export so call sites don't need to import dataModel directly.
 export type ServerId<T extends 'expenses' | 'categories' | 'momoAccounts'> = Id<T>;
-
-/**
- * Used by the store when attributing legacy un-userId'd rows to the
- * current user. Returns the new SyncTable, just a helper alias.
- */
 export type { SyncTable };

@@ -8,6 +8,8 @@
 //   v3 — local-first sync layer: every replicated row carries userId/serverId/
 //        synced/clientId. syncQueue rewritten with userId scoping, action/
 //        payload/attempt tracking, and an index for FIFO drain.
+//   v4 — account-scoped rows and account-owned pending voice notes.
+//   v5 — compound user/account index for pending voice note replay.
 
 import Dexie, { type Table } from 'dexie';
 import type { Expense, Category, MomoAccount, SyncQueueItem, PendingVoiceNote } from '@/types';
@@ -58,6 +60,32 @@ export class VoxSpendDB extends Dexie {
         // engine will re-enqueue anything that needs sending.
         await tx.table('syncQueue').clear();
       });
+
+    this.version(4)
+      .stores({
+        expenses: 'id, userId, accountId, [userId+accountId], [userId+accountId+date], [userId+accountId+synced], serverId, clientId, date, category, type, momoAccountId, synced, createdAt',
+        categories: 'id, userId, accountId, [userId+accountId], [userId+accountId+name], serverId, clientId, name, isCustom',
+        momoAccounts: 'id, userId, accountId, [userId+accountId], [userId+accountId+provider], serverId, clientId, provider, phoneNumber',
+        syncQueue: '++id, userId, accountId, [userId+accountId+createdAt], table, entityId, clientId, createdAt',
+        pendingVoiceNotes: '++id, userId, accountId, createdAt',
+      })
+      .upgrade(async (tx) => {
+        const addAccountMarker = (row: Record<string, unknown>) => {
+          if (!('accountId' in row)) row.accountId = '';
+        };
+        await tx.table('expenses').toCollection().modify(addAccountMarker);
+        await tx.table('categories').toCollection().modify(addAccountMarker);
+        await tx.table('momoAccounts').toCollection().modify(addAccountMarker);
+        await tx.table('syncQueue').toCollection().modify(addAccountMarker);
+        await tx.table('pendingVoiceNotes').toCollection().modify((row) => {
+          if (!('userId' in row)) row.userId = '';
+          if (!('accountId' in row)) row.accountId = '';
+        });
+      });
+
+    this.version(5).stores({
+      pendingVoiceNotes: '++id, userId, accountId, [userId+accountId], createdAt',
+    });
   }
 }
 

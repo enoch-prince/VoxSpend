@@ -13,6 +13,7 @@ export const transcribeAndParse = action({
     audioBase64: v.string(),
     categories: v.array(v.string()),
     userGroqKey: v.optional(v.string()),
+    preferredCurrency: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -59,7 +60,7 @@ export const transcribeAndParse = action({
       const transcript = (await transcriptionRes.text()).trim();
 
       // 3. Parse with Llama
-      const systemPrompt = buildGroqSystemPrompt(args.categories);
+      const systemPrompt = buildGroqSystemPrompt(args.categories, args.preferredCurrency ?? 'GHS');
 
       const parseRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -84,7 +85,7 @@ export const transcribeAndParse = action({
       });
 
       const parseData = await parseRes.json();
-      const result = parseGroqResponse(parseData);
+      const result = parseGroqResponse(parseData, args.preferredCurrency ?? 'GHS');
 
       return { transcript, result };
     } catch (error: any) {

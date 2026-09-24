@@ -38,7 +38,7 @@
 
         <!-- Amount Input -->
         <div class="manual-modal__amount-wrapper">
-          <span class="manual-modal__currency">GH₵</span>
+          <span class="manual-modal__currency">{{ activeCurrencySymbol }}</span>
           <input
             ref="amountInput"
             v-model="amountDisplay"
@@ -144,6 +144,8 @@
   import { ref, reactive, computed, nextTick, watch } from 'vue';
   import { useExpensesStore } from '@/stores/expenses';
   import { useCategoriesStore } from '@/stores/categories';
+  import { useAccountsStore } from '@/stores/accounts';
+  import { currencyInfo } from '@/utils/currency';
 
   const emit = defineEmits<{
     close: [];
@@ -156,9 +158,12 @@
 
   const expensesStore = useExpensesStore();
   const categoriesStore = useCategoriesStore();
+  const accountsStore = useAccountsStore();
 
   const amountInput = ref<HTMLInputElement | null>(null);
   const amountDisplay = ref('');
+  const activeCurrency = computed(() => accountsStore.activeAccount?.currency ?? 'GHS');
+  const activeCurrencySymbol = computed(() => currencyInfo(activeCurrency.value).symbol);
 
   const form = reactive({
     amount: 0,
@@ -209,7 +214,7 @@
 
     await expensesStore.addExpense({
       amount: form.amount,
-      currency: 'GHS',
+      currency: activeCurrency.value,
       type: form.type,
       category: form.category,
       merchant: form.merchant || 'Unknown',

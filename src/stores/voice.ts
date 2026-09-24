@@ -9,6 +9,8 @@ import { transcribeAudio, parseExpense } from '@/services/groqService';
 import { useUserStore } from './user';
 import { useExpensesStore } from './expenses';
 import { useCategoriesStore } from './categories';
+import { useAccountsStore } from './accounts';
+import { useAuthStore } from './auth';
 import { db, now } from '@/services/database';
 import { convex, api } from '@/services/convexClient';
 import { toFriendlyError } from '@/utils/errors';
@@ -54,13 +56,23 @@ export const useVoiceStore = defineStore('voice', () => {
   async function stopAndProcess() {
     state.value = 'processing';
     let blob: Blob | null = null;
+    const authStore = useAuthStore();
+    const accountsStore = useAccountsStore();
 
     try {
       blob = await recorder.stopRecording();
 
       if (!navigator.onLine) {
         // Save to IndexedDB if offline
-        await db.pendingVoiceNotes.add({ audio: blob, createdAt: now() });
+        if (!authStore.currentUserId || !accountsStore.activeAccountId) {
+          throw new Error('No active expense account');
+        }
+        await db.pendingVoiceNotes.add({
+          audio: blob,
+          userId: authStore.currentUserId,
+          accountId: accountsStore.activeAccountId,
+          createdAt: now(),
+        });
         await updatePendingCount();
         state.value = 'offline-saved';
         setTimeout(() => reset(), 3000);
@@ -69,6 +81,7 @@ export const useVoiceStore = defineStore('voice', () => {
 
       const userStore = useUserStore();
       const categoriesStore = useCategoriesStore();
+      const preferredCurrency = accountsStore.activeAccount?.currency ?? 'GHS';
 
       if (userStore.profile.groqApiKey) {
         // Use direct service if user provided their own key
@@ -87,6 +100,7 @@ export const useVoiceStore = defineStore('voice', () => {
         const data: any = await convex.action(api.voice.transcribeAndParse, {
           audioBase64: base64Audio,
           categories: categoriesStore.categoryNames,
+          preferredCurrency,
         });
         // console.log('Convex transcribeAndParse result:', data);
         transcript.value = data.transcript;
@@ -94,7 +108,7 @@ export const useVoiceStore = defineStore('voice', () => {
         parsedExpenses.value = (data.result.results || []).map((res: any) => ({
           ...res,
           amount: Math.abs(res.amount || 0),
-          currency: res.currency || 'GHS',
+          currency: res.currency || preferredCurrency,
           type: res.type === 'income' ? 'income' : 'expense',
           category: res.category || 'Other',
           merchant: res.merchant || 'Unknown',
@@ -119,7 +133,14 @@ export const useVoiceStore = defineStore('voice', () => {
       if (isNetworkError && blob) {
         // Internet dropped mid-processing — save audio to queue silently
         try {
-          await db.pendingVoiceNotes.add({ audio: blob, createdAt: now() });
+          if (authStore.currentUserId && accountsStore.activeAccountId) {
+            await db.pendingVoiceNotes.add({
+              audio: blob,
+              userId: authStore.currentUserId,
+              accountId: accountsStore.activeAccountId,
+              createdAt: now(),
+            });
+          }
           await updatePendingCount();
           state.value = 'offline-saved';
           setTimeout(() => reset(), 3000);
@@ -145,6 +166,8 @@ export const useVoiceStore = defineStore('voice', () => {
 
     const userStore = useUserStore();
     const categoriesStore = useCategoriesStore();
+    const accountsStore = useAccountsStore();
+    const preferredCurrency = accountsStore.activeAccount?.currency ?? 'GHS';
 
     try {
       state.value = 'processing';
@@ -152,7 +175,8 @@ export const useVoiceStore = defineStore('voice', () => {
       const result = await parseExpense(
         text,
         userStore.profile.groqApiKey,
-        categoriesStore.categoryNames
+        categoriesStore.categoryNames,
+        preferredCurrency,
       );
 
       // console.log('Parsed expense result:', result);
@@ -160,7 +184,7 @@ export const useVoiceStore = defineStore('voice', () => {
       parsedExpenses.value = (result.results || []).map((res: any) => ({
         ...res,
         amount: Math.abs(res.amount || 0),
-        currency: res.currency || 'GHS',
+        currency: res.currency || preferredCurrency,
         type: res.type === 'income' ? 'income' : 'expense',
         category: res.category || 'Other',
         merchant: res.merchant || 'Unknown',
@@ -180,7 +204,7 @@ export const useVoiceStore = defineStore('voice', () => {
       parsedExpenses.value = [
         {
           amount: 0,
-          currency: 'GHS',
+          currency: preferredCurrency,
           type: 'expense',
           category: 'Other',
           merchant: 'Unknown',
@@ -261,12 +285,20 @@ export const useVoiceStore = defineStore('voice', () => {
   async function syncPendingNotes() {
     if (!navigator.onLine) return;
 
-    const pendingNotes = await db.pendingVoiceNotes.toArray();
+    const userId = useAuthStore().currentUserId;
+    const accountId = useAccountsStore().activeAccountId;
+    if (!userId || !accountId) return;
+    const pendingNotes = await db.pendingVoiceNotes
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .toArray();
     if (pendingNotes.length === 0) return;
 
     const userStore = useUserStore();
     const categoriesStore = useCategoriesStore();
     const expensesStore = useExpensesStore();
+    const accountsStore = useAccountsStore();
+    const preferredCurrency = accountsStore.activeAccount?.currency ?? 'GHS';
 
     for (const note of pendingNotes) {
       try {
@@ -277,7 +309,8 @@ export const useVoiceStore = defineStore('voice', () => {
           const parsedResult = await parseExpense(
             transcriptText,
             userStore.profile.groqApiKey,
-            categoriesStore.categoryNames
+            categoriesStore.categoryNames,
+            preferredCurrency,
           );
           results = (parsedResult.results || []).map((res: any) => ({
             ...res,
@@ -294,6 +327,7 @@ export const useVoiceStore = defineStore('voice', () => {
           const data: any = await convex.action(api.voice.transcribeAndParse, {
             audioBase64: base64Audio,
             categories: categoriesStore.categoryNames,
+            preferredCurrency,
           });
 
           results = (data.result.results || []).map((res: any) => ({
@@ -305,7 +339,7 @@ export const useVoiceStore = defineStore('voice', () => {
         for (const res of results) {
           await expensesStore.addExpense({
             amount: Math.abs(res.amount || 0),
-            currency: res.currency || 'GHS',
+            currency: res.currency || preferredCurrency,
             type: res.type === 'income' ? 'income' : 'expense',
             category: res.category || 'Other',
             merchant: res.merchant || 'Unknown',

@@ -1,7 +1,7 @@
 <template>
   <div class="balance-card neo-card">
     <p class="balance-card__label text-secondary text-sm">Your balance</p>
-    <h2 class="balance-card__amount text-3xl font-extrabold">GH₵ {{ formattedBalance }}</h2>
+    <h2 class="balance-card__amount text-3xl font-extrabold">{{ formattedBalance }}</h2>
 
     <div class="balance-card__stats">
       <div class="balance-card__stat neo-card-flat">
@@ -10,7 +10,7 @@
           <span class="balance-card__badge balance-card__badge--income text-xs font-bold">
             <span class="material-symbols-rounded" style="font-size: 12px">arrow_upward</span>
           </span>
-          <span class="text-md font-bold">GH₵ {{ formatAmount(income) }}</span>
+          <span class="text-md font-bold">{{ formatAmount(income) }}</span>
         </div>
       </div>
 
@@ -20,7 +20,7 @@
           <span class="balance-card__badge balance-card__badge--expense text-xs font-bold">
             <span class="material-symbols-rounded" style="font-size: 12px">arrow_downward</span>
           </span>
-          <span class="text-md font-bold">GH₵ {{ formatAmount(expenses) }}</span>
+          <span class="text-md font-bold">{{ formatAmount(expenses) }}</span>
         </div>
       </div>
     </div>
@@ -34,21 +34,18 @@
     balance: number;
     income: number;
     expenses: number;
+    currency: string;
   }>();
 
   const formattedBalance = computed(() => {
-    return props.balance.toLocaleString('en-GH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    return formatCurrency(props.balance, props.currency);
   });
 
   function formatAmount(val: number): string {
-    return val.toLocaleString('en-GH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    return formatCurrency(val, props.currency);
   }
+
+  import { formatCurrency } from '@/utils/currency';
 </script>
 
 <style lang="scss">

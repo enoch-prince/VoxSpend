@@ -11,6 +11,7 @@ import { convex, api } from '@/services/convexClient';
 import { db, generateId, generateClientId, now } from '@/services/database';
 import { enqueue, drain } from '@/services/syncEngine';
 import { useAuthStore } from './auth';
+import { useAccountsStore } from './accounts';
 import { toFriendlyError } from '@/utils/errors';
 import type { MomoAccount, MomoProvider } from '@/types';
 
@@ -35,6 +36,12 @@ export const useMomoStore = defineStore('momo', () => {
     return id;
   }
 
+  function currentAccountId(): string {
+    const id = useAccountsStore().activeAccountId;
+    if (!id) throw new Error('No active expense account');
+    return id;
+  }
+
   const RECONCILE_TTL_MS = 60_000;
   const RECONCILE_KEY = 'voxspend-reconcile-momo';
 
@@ -42,7 +49,11 @@ export const useMomoStore = defineStore('momo', () => {
     loading.value = true;
     try {
       const userId = currentUserId();
-      accounts.value = await db.momoAccounts.where('userId').equals(userId).sortBy('linkedAt');
+      const accountId = currentAccountId();
+      accounts.value = await db.momoAccounts
+        .where('[userId+accountId]')
+        .equals([userId, accountId])
+        .sortBy('linkedAt');
       if (navigator.onLine) {
         const lastReconcile = Number(localStorage.getItem(RECONCILE_KEY) ?? 0);
         if (Date.now() - lastReconcile > RECONCILE_TTL_MS) {
@@ -60,10 +71,14 @@ export const useMomoStore = defineStore('momo', () => {
 
   async function reconcileFromServer() {
     const userId = currentUserId();
-    const serverDocs = (await convex.query(api.momoAccounts.list)) as ConvexMomo[];
+    const accountId = currentAccountId();
+    const serverDocs = (await convex.query(api.momoAccounts.list, { accountId: accountId as never })) as ConvexMomo[];
 
     const localByClientId = new Map<string, MomoAccount>();
-    const localRows = await db.momoAccounts.where('userId').equals(userId).toArray();
+    const localRows = await db.momoAccounts
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .toArray();
     for (const row of localRows) localByClientId.set(row.clientId, row);
 
     for (const doc of serverDocs) {
@@ -75,6 +90,7 @@ export const useMomoStore = defineStore('momo', () => {
           id: generateId(),
           serverId: doc._id,
           userId,
+          accountId,
           synced: true,
           clientId: doc.clientId,
           provider: doc.provider,
@@ -94,11 +110,15 @@ export const useMomoStore = defineStore('momo', () => {
       });
     }
 
-    accounts.value = await db.momoAccounts.where('userId').equals(userId).sortBy('linkedAt');
+    accounts.value = await db.momoAccounts
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .sortBy('linkedAt');
   }
 
   async function linkAccount(provider: MomoProvider, phoneNumber: string, nickname: string) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const duplicate = accounts.value.find(
       (a) => a.provider === provider && a.phoneNumber === phoneNumber,
     );
@@ -108,6 +128,7 @@ export const useMomoStore = defineStore('momo', () => {
       id: generateId(),
       clientId: generateClientId(),
       userId,
+      accountId,
       synced: false,
       provider,
       phoneNumber,
@@ -118,6 +139,7 @@ export const useMomoStore = defineStore('momo', () => {
       await db.momoAccounts.add(row);
       await enqueue({
         userId,
+        accountId,
         table: 'momoAccounts',
         action: 'create',
         entityId: row.id,
@@ -138,6 +160,7 @@ export const useMomoStore = defineStore('momo', () => {
 
   async function unlinkAccount(id: string) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     try {
       const existing = await db.momoAccounts.get(id);
       if (!existing) {
@@ -147,6 +170,7 @@ export const useMomoStore = defineStore('momo', () => {
       await db.momoAccounts.delete(id);
       await enqueue({
         userId,
+        accountId,
         table: 'momoAccounts',
         action: 'delete',
         entityId: id,
@@ -162,6 +186,7 @@ export const useMomoStore = defineStore('momo', () => {
 
   async function updateAccount(id: string, updates: Partial<MomoAccount>) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const {
       id: _id,
       userId: _u,
@@ -177,6 +202,7 @@ export const useMomoStore = defineStore('momo', () => {
       await db.momoAccounts.update(id, { ...mutable, synced: false });
       await enqueue({
         userId,
+        accountId,
         table: 'momoAccounts',
         action: 'update',
         entityId: id,
@@ -195,13 +221,15 @@ export const useMomoStore = defineStore('momo', () => {
 
   async function attributeLegacyRows() {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const orphans = await db.momoAccounts.where('userId').equals('').toArray();
     if (orphans.length === 0) return;
     for (const row of orphans) {
       const clientId = row.clientId || generateClientId();
-      await db.momoAccounts.update(row.id, { userId, clientId, synced: false });
+      await db.momoAccounts.update(row.id, { userId, accountId, clientId, synced: false });
       await enqueue({
         userId,
+        accountId,
         table: 'momoAccounts',
         action: 'create',
         entityId: row.id,
@@ -221,6 +249,10 @@ export const useMomoStore = defineStore('momo', () => {
     return accounts.value.find((a) => a.id === id);
   }
 
+  function clear() {
+    accounts.value = [];
+  }
+
   return {
     accounts,
     loading,
@@ -231,5 +263,6 @@ export const useMomoStore = defineStore('momo', () => {
     updateAccount,
     attributeLegacyRows,
     getAccountById,
+    clear,
   };
 });

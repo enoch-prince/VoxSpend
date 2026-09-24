@@ -22,7 +22,7 @@
             class="text-3xl font-extrabold mt-md"
             :class="expense.type === 'income' ? 'text-success' : ''"
           >
-            {{ expense.type === 'income' ? '+' : '-' }}GH₵ {{ expense.amount.toFixed(2) }}
+            {{ expense.type === 'income' ? '+' : '-' }}{{ formatCurrency(expense.amount, expense.currency) }}
           </p>
           <p class="text-sm text-secondary mt-xs">{{ expense.merchant }}</p>
         </div>
@@ -90,6 +90,7 @@
   import { ref, computed, reactive, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useExpensesStore } from '@/stores/expenses';
+  import { formatCurrency } from '@/utils/currency';
   import { useCategoriesStore } from '@/stores/categories';
 
   const route = useRoute();

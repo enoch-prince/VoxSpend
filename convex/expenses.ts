@@ -1,16 +1,23 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requireVerifiedUser } from './authHelpers';
+import { requireOwnedAccount, requireVerifiedUser } from './authHelpers';
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { accountId: v.optional(v.id('expenseAccounts')) },
+  handler: async (ctx, { accountId }) => {
     const userId = await requireVerifiedUser(ctx);
-    return await ctx.db
-      .query('expenses')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .order('desc')
-      .take(500);
+    if (accountId) await requireOwnedAccount(ctx, userId, accountId);
+    return accountId
+      ? await ctx.db
+          .query('expenses')
+          .withIndex('by_user_and_account', (q) => q.eq('userId', userId).eq('accountId', accountId))
+          .order('desc')
+          .take(500)
+      : await ctx.db
+          .query('expenses')
+          .withIndex('by_user', (q) => q.eq('userId', userId))
+          .order('desc')
+          .take(500);
   },
 });
 
@@ -19,6 +26,7 @@ export const list = query({
 // return the existing _id instead of inserting a duplicate.
 export const upsert = mutation({
   args: {
+    accountId: v.optional(v.id('expenseAccounts')),
     clientId: v.string(),
     amount: v.number(),
     currency: v.string(),
@@ -33,12 +41,20 @@ export const upsert = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireVerifiedUser(ctx);
-    const existing = await ctx.db
-      .query('expenses')
-      .withIndex('by_user_and_client', (q) =>
-        q.eq('userId', userId).eq('clientId', args.clientId),
-      )
-      .unique();
+    if (args.accountId) await requireOwnedAccount(ctx, userId, args.accountId);
+    const existing = args.accountId
+      ? await ctx.db
+          .query('expenses')
+          .withIndex('by_user_and_account_and_client', (q) =>
+            q.eq('userId', userId).eq('accountId', args.accountId).eq('clientId', args.clientId),
+          )
+          .unique()
+      : await ctx.db
+          .query('expenses')
+          .withIndex('by_user_and_client', (q) =>
+            q.eq('userId', userId).eq('clientId', args.clientId),
+          )
+          .unique();
     if (existing) return existing._id;
     return await ctx.db.insert('expenses', { ...args, userId });
   },
@@ -47,6 +63,7 @@ export const upsert = mutation({
 // Update by clientId so the queue never needs to remember the server _id.
 export const update = mutation({
   args: {
+    accountId: v.optional(v.id('expenseAccounts')),
     clientId: v.string(),
     amount: v.optional(v.number()),
     currency: v.optional(v.string()),
@@ -58,25 +75,41 @@ export const update = mutation({
     momoAccountId: v.optional(v.string()),
     updatedAt: v.string(),
   },
-  handler: async (ctx, { clientId, ...fields }) => {
+  handler: async (ctx, { clientId, accountId, ...fields }) => {
     const userId = await requireVerifiedUser(ctx);
-    const existing = await ctx.db
-      .query('expenses')
-      .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
-      .unique();
+    if (accountId) await requireOwnedAccount(ctx, userId, accountId);
+    const existing = accountId
+      ? await ctx.db
+          .query('expenses')
+          .withIndex('by_user_and_account_and_client', (q) =>
+            q.eq('userId', userId).eq('accountId', accountId).eq('clientId', clientId),
+          )
+          .unique()
+      : await ctx.db
+          .query('expenses')
+          .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
+          .unique();
     if (!existing) return; // already deleted on another device, or never made it — drop silently
     await ctx.db.patch(existing._id, fields);
   },
 });
 
 export const remove = mutation({
-  args: { clientId: v.string() },
-  handler: async (ctx, { clientId }) => {
+  args: { clientId: v.string(), accountId: v.optional(v.id('expenseAccounts')) },
+  handler: async (ctx, { clientId, accountId }) => {
     const userId = await requireVerifiedUser(ctx);
-    const existing = await ctx.db
-      .query('expenses')
-      .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
-      .unique();
+    if (accountId) await requireOwnedAccount(ctx, userId, accountId);
+    const existing = accountId
+      ? await ctx.db
+          .query('expenses')
+          .withIndex('by_user_and_account_and_client', (q) =>
+            q.eq('userId', userId).eq('accountId', accountId).eq('clientId', clientId),
+          )
+          .unique()
+      : await ctx.db
+          .query('expenses')
+          .withIndex('by_user_and_client', (q) => q.eq('userId', userId).eq('clientId', clientId))
+          .unique();
     if (!existing) return; // already gone — idempotent delete
     await ctx.db.delete(existing._id);
   },

@@ -12,6 +12,7 @@ import { convex, api } from '@/services/convexClient';
 import { db, generateId, generateClientId, now } from '@/services/database';
 import { enqueue, drain } from '@/services/syncEngine';
 import { useAuthStore } from './auth';
+import { useAccountsStore } from './accounts';
 import { toFriendlyError } from '@/utils/errors';
 import type { Category } from '@/types';
 import { DEFAULT_CATEGORIES } from '@/types';
@@ -38,6 +39,12 @@ export const useCategoriesStore = defineStore('categories', () => {
     return id;
   }
 
+  function currentAccountId(): string {
+    const id = useAccountsStore().activeAccountId;
+    if (!id) throw new Error('No active expense account');
+    return id;
+  }
+
   const categoryNames = computed(() => categories.value.map((c) => c.name));
   const categoryMap = computed(() => {
     const map: Record<string, Category> = {};
@@ -58,7 +65,11 @@ export const useCategoriesStore = defineStore('categories', () => {
     loading.value = true;
     try {
       const userId = currentUserId();
-      categories.value = await db.categories.where('userId').equals(userId).sortBy('name');
+      const accountId = currentAccountId();
+      categories.value = await db.categories
+        .where('[userId+accountId]')
+        .equals([userId, accountId])
+        .sortBy('name');
 
       // Prefer existing server categories before creating local defaults.
       if (categories.value.length === 0 && navigator.onLine) {
@@ -67,7 +78,10 @@ export const useCategoriesStore = defineStore('categories', () => {
 
       await dedupeLocalRows(userId);
       await seedDefaults(userId);
-      categories.value = await db.categories.where('userId').equals(userId).sortBy('name');
+      categories.value = await db.categories
+        .where('[userId+accountId]')
+        .equals([userId, accountId])
+        .sortBy('name');
 
       if (navigator.onLine) {
         const lastReconcile = Number(localStorage.getItem(RECONCILE_KEY) ?? 0);
@@ -86,8 +100,9 @@ export const useCategoriesStore = defineStore('categories', () => {
 
   async function seedDefaults(userId: string) {
     const ts = now();
+    const accountId = currentAccountId();
     const existingNames = new Set(
-      (await db.categories.where('userId').equals(userId).toArray()).map((row) =>
+      (await db.categories.where('[userId+accountId]').equals([userId, accountId]).toArray()).map((row) =>
         normalizeCategoryName(row.name),
       ),
     );
@@ -98,6 +113,7 @@ export const useCategoriesStore = defineStore('categories', () => {
         id: generateId(),
         clientId: generateClientId(),
         userId,
+        accountId,
         synced: false,
         name: template.name,
         icon: template.icon,
@@ -108,6 +124,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       await db.categories.add(row);
       await enqueue({
         userId,
+        accountId,
         table: 'categories',
         action: 'create',
         entityId: row.id,
@@ -125,7 +142,11 @@ export const useCategoriesStore = defineStore('categories', () => {
   }
 
   async function dedupeLocalRows(userId: string) {
-    const rows = await db.categories.where('userId').equals(userId).toArray();
+    const accountId = currentAccountId();
+    const rows = await db.categories
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .toArray();
     const canonicalByName = new Map<string, Category>();
     const duplicateIds: string[] = [];
 
@@ -157,12 +178,16 @@ export const useCategoriesStore = defineStore('categories', () => {
 
   async function reconcileFromServer() {
     const userId = currentUserId();
-    const serverDocs = (await convex.query(api.categories.list)) as ConvexCategory[];
+    const accountId = currentAccountId();
+    const serverDocs = (await convex.query(api.categories.list, { accountId: accountId as never })) as ConvexCategory[];
 
     await dedupeLocalRows(userId);
 
     const localByClientId = new Map<string, Category>();
-    const localRows = await db.categories.where('userId').equals(userId).toArray();
+    const localRows = await db.categories
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .toArray();
     for (const row of localRows) localByClientId.set(row.clientId, row);
 
     for (const doc of serverDocs) {
@@ -174,6 +199,7 @@ export const useCategoriesStore = defineStore('categories', () => {
           id: generateId(),
           serverId: doc._id,
           userId,
+          accountId,
           synced: true,
           clientId: doc.clientId,
           name: doc.name,
@@ -197,19 +223,23 @@ export const useCategoriesStore = defineStore('categories', () => {
     }
 
     await dedupeLocalRows(userId);
-    categories.value = await db.categories.where('userId').equals(userId).sortBy('name');
+    categories.value = await db.categories
+      .where('[userId+accountId]')
+      .equals([userId, accountId])
+      .sortBy('name');
   }
 
   async function addCategory(name: string, icon: string, color: string) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const trimmedName = name.trim();
     if (!trimmedName) throw new Error("Couldn't add that category.");
     const existing = await db.categories
-      .where('[userId+name]')
-      .equals([userId, name])
+      .where('[userId+accountId+name]')
+      .equals([userId, accountId, name])
       .first();
     const sameName = existing ??
-      (await db.categories.where('userId').equals(userId).toArray()).find(
+      (await db.categories.where('[userId+accountId]').equals([userId, accountId]).toArray()).find(
         (category) => normalizeCategoryName(category.name) === normalizeCategoryName(trimmedName),
       );
     if (sameName) throw new Error('A category with that name already exists.');
@@ -218,6 +248,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       id: generateId(),
       clientId: generateClientId(),
       userId,
+      accountId,
       synced: false,
       name: trimmedName,
       icon,
@@ -229,6 +260,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       await db.categories.add(row);
       await enqueue({
         userId,
+        accountId,
         table: 'categories',
         action: 'create',
         entityId: row.id,
@@ -243,11 +275,13 @@ export const useCategoriesStore = defineStore('categories', () => {
 
   async function updateCategory(id: string, updates: Partial<Category>) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const {
       id: _id,
       createdAt: _c,
       isCustom: _ic,
       userId: _u,
+      accountId: _a,
       synced: _s,
       clientId: _cid,
       serverId: _sid,
@@ -259,6 +293,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       await db.categories.update(id, { ...mutable, synced: false });
       await enqueue({
         userId,
+        accountId,
         table: 'categories',
         action: 'update',
         entityId: id,
@@ -277,6 +312,7 @@ export const useCategoriesStore = defineStore('categories', () => {
 
   async function deleteCategory(id: string) {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const cat = categories.value.find((c) => c.id === id);
     if (cat && !cat.isCustom) return; // never delete defaults
     try {
@@ -288,6 +324,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       await db.categories.delete(id);
       await enqueue({
         userId,
+        accountId,
         table: 'categories',
         action: 'delete',
         entityId: id,
@@ -303,16 +340,18 @@ export const useCategoriesStore = defineStore('categories', () => {
 
   async function attributeLegacyRows() {
     const userId = currentUserId();
+    const accountId = currentAccountId();
     const orphans = await db.categories.where('userId').equals('').toArray();
     if (orphans.length === 0) return;
     for (const row of orphans) {
       const clientId = row.clientId || generateClientId();
-      await db.categories.update(row.id, { userId, clientId, synced: false });
+      await db.categories.update(row.id, { userId, accountId, clientId, synced: false });
       // Only push custom categories to the server — defaults will be seeded
       // freshly per-user via the hydrate flow.
       if (row.isCustom) {
         await enqueue({
           userId,
+          accountId,
           table: 'categories',
           action: 'create',
           entityId: row.id,
@@ -334,6 +373,10 @@ export const useCategoriesStore = defineStore('categories', () => {
     return categories.value.find((c) => c.name.toLowerCase() === name.toLowerCase());
   }
 
+  function clear() {
+    categories.value = [];
+  }
+
   return {
     categories,
     loading,
@@ -346,5 +389,6 @@ export const useCategoriesStore = defineStore('categories', () => {
     deleteCategory,
     attributeLegacyRows,
     getCategoryByName,
+    clear,
   };
 });
