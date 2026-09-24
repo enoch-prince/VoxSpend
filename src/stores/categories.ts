@@ -50,19 +50,24 @@ export const useCategoriesStore = defineStore('categories', () => {
   const RECONCILE_TTL_MS = 60_000;
   const RECONCILE_KEY = 'voxspend-reconcile-categories';
 
+  function normalizeCategoryName(name: string): string {
+    return name.trim().toLocaleLowerCase();
+  }
+
   async function hydrate() {
     loading.value = true;
     try {
       const userId = currentUserId();
       categories.value = await db.categories.where('userId').equals(userId).sortBy('name');
 
-      // First-run for this user: seed defaults locally and enqueue them.
-      // The reconcile pass below will dedupe if the server already has them
-      // (clientId-based upsert is idempotent).
-      if (categories.value.length === 0) {
-        await seedDefaults(userId);
-        categories.value = await db.categories.where('userId').equals(userId).sortBy('name');
+      // Prefer existing server categories before creating local defaults.
+      if (categories.value.length === 0 && navigator.onLine) {
+        await reconcileFromServer();
       }
+
+      await dedupeLocalRows(userId);
+      await seedDefaults(userId);
+      categories.value = await db.categories.where('userId').equals(userId).sortBy('name');
 
       if (navigator.onLine) {
         const lastReconcile = Number(localStorage.getItem(RECONCILE_KEY) ?? 0);
@@ -81,7 +86,14 @@ export const useCategoriesStore = defineStore('categories', () => {
 
   async function seedDefaults(userId: string) {
     const ts = now();
+    const existingNames = new Set(
+      (await db.categories.where('userId').equals(userId).toArray()).map((row) =>
+        normalizeCategoryName(row.name),
+      ),
+    );
     for (const template of DEFAULT_CATEGORIES) {
+      const normalizedName = normalizeCategoryName(template.name);
+      if (existingNames.has(normalizedName)) continue;
       const row: Category = {
         id: generateId(),
         clientId: generateClientId(),
@@ -108,12 +120,46 @@ export const useCategoriesStore = defineStore('categories', () => {
           createdAt: row.createdAt,
         },
       });
+      existingNames.add(normalizedName);
+    }
+  }
+
+  async function dedupeLocalRows(userId: string) {
+    const rows = await db.categories.where('userId').equals(userId).toArray();
+    const canonicalByName = new Map<string, Category>();
+    const duplicateIds: string[] = [];
+
+    for (const row of rows) {
+      const key = normalizeCategoryName(row.name);
+      const canonical = canonicalByName.get(key);
+      if (!canonical) {
+        canonicalByName.set(key, row);
+        continue;
+      }
+
+      const rowIsBetter =
+        Number(row.synced) > Number(canonical.synced) ||
+        (row.synced === canonical.synced && Boolean(row.serverId) && !canonical.serverId) ||
+        (row.synced === canonical.synced && Boolean(row.serverId) === Boolean(canonical.serverId) && row.createdAt < canonical.createdAt);
+      if (rowIsBetter) {
+        duplicateIds.push(canonical.id);
+        canonicalByName.set(key, row);
+      } else {
+        duplicateIds.push(row.id);
+      }
+    }
+
+    for (const id of duplicateIds) {
+      await db.syncQueue.where('entityId').equals(id).delete();
+      await db.categories.delete(id);
     }
   }
 
   async function reconcileFromServer() {
     const userId = currentUserId();
     const serverDocs = (await convex.query(api.categories.list)) as ConvexCategory[];
+
+    await dedupeLocalRows(userId);
 
     const localByClientId = new Map<string, Category>();
     const localRows = await db.categories.where('userId').equals(userId).toArray();
@@ -150,18 +196,30 @@ export const useCategoriesStore = defineStore('categories', () => {
       });
     }
 
+    await dedupeLocalRows(userId);
     categories.value = await db.categories.where('userId').equals(userId).sortBy('name');
   }
 
   async function addCategory(name: string, icon: string, color: string) {
     const userId = currentUserId();
+    const trimmedName = name.trim();
+    if (!trimmedName) throw new Error("Couldn't add that category.");
+    const existing = await db.categories
+      .where('[userId+name]')
+      .equals([userId, name])
+      .first();
+    const sameName = existing ??
+      (await db.categories.where('userId').equals(userId).toArray()).find(
+        (category) => normalizeCategoryName(category.name) === normalizeCategoryName(trimmedName),
+      );
+    if (sameName) throw new Error('A category with that name already exists.');
     const createdAt = now();
     const row: Category = {
       id: generateId(),
       clientId: generateClientId(),
       userId,
       synced: false,
-      name,
+      name: trimmedName,
       icon,
       color,
       isCustom: true,
@@ -175,7 +233,7 @@ export const useCategoriesStore = defineStore('categories', () => {
         action: 'create',
         entityId: row.id,
         clientId: row.clientId,
-        payload: { name, icon, color, isCustom: true, createdAt },
+        payload: { name: trimmedName, icon, color, isCustom: true, createdAt },
       });
       categories.value.push(row);
     } catch (err) {
