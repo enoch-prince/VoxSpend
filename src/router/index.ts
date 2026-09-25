@@ -48,6 +48,12 @@ const router = createRouter({
       meta: { title: 'Profile — VoxSpend' },
     },
     {
+      path: '/account-settings',
+      name: 'account-settings',
+      component: () => import('@/views/AccountSettingsView.vue'),
+      meta: { title: 'Account Settings — VoxSpend' },
+    },
+    {
       path: '/momo',
       name: 'momo',
       component: () => import('@/views/MomoLinkView.vue'),

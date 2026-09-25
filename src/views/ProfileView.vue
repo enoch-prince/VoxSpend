@@ -6,102 +6,12 @@
       </header>
 
       <!-- Avatar + Name -->
-      <div class="profile-view__hero neo-card flex flex-col items-center mb-lg">
+      <div class="profile-view__hero neo-card flex flex-col items-center mb-lg" @click="goToAccountSettings">
         <div class="profile-view__avatar">
           <span class="text-xl font-bold">{{ userStore.initials }}</span>
         </div>
         <p class="text-lg font-bold mt-md">{{ userStore.profile.name }}</p>
-        <p class="text-sm text-secondary">
-          {{ accountsStore.activeAccount?.currency ?? 'GHS' }} ·
-          {{ accountCurrencyName(accountsStore.activeAccount?.currency ?? 'GHS') }}
-        </p>
-      </div>
-
-      <!-- Expense account -->
-      <div class="neo-card-sm mb-md">
-        <div class="profile-view__row">
-          <span class="material-symbols-rounded text-secondary">account_tree</span>
-          <span class="text-sm font-semibold flex-1">Account settings</span>
-          <button
-            class="neo-button neo-button--ghost text-xs"
-            type="button"
-            @click="showAccountForm = !showAccountForm"
-          >
-            {{ showAccountForm ? 'Close' : 'Add account' }}
-          </button>
-        </div>
-        <div class="profile-view__divider"></div>
-        <div v-if="accountsStore.activeAccount" class="profile-view__account-summary">
-          <span class="material-symbols-rounded text-primary" aria-hidden="true">account_tree</span>
-          <div class="flex flex-col">
-            <strong class="text-sm">{{ accountsStore.activeAccount.name }}</strong>
-            <span class="text-xs text-tertiary">
-              {{ accountsStore.activeAccount.currency }} ·
-              {{ accountCurrencyName(accountsStore.activeAccount.currency) }}
-            </span>
-          </div>
-        </div>
-        <div v-if="accountsStore.activeAccount" class="profile-view__row mt-sm">
-          <label class="text-xs text-secondary" for="account-currency-select">Currency</label>
-          <select
-            id="account-currency-select"
-            :value="accountsStore.activeAccount.currency"
-            class="neo-input text-sm"
-            style="max-width: 190px"
-            @change="updateCurrency"
-          >
-            <option v-for="currency in currencies" :key="currency.code" :value="currency.code">
-              {{ currency.code }} · {{ currency.name }}
-            </option>
-          </select>
-        </div>
-        <div v-if="accountsStore.activeAccount" class="flex gap-sm mt-sm">
-          <input
-            v-model="accountName"
-            class="neo-input flex-1 text-sm"
-            aria-label="Active account name"
-          />
-          <button
-            class="neo-button neo-button--ghost text-xs"
-            type="button"
-            :disabled="!accountName.trim() || accountsStore.saving"
-            @click="renameActiveAccount"
-          >
-            Save
-          </button>
-        </div>
-        <div v-if="showAccountForm" class="mt-md">
-          <input
-            v-model="newAccountName"
-            class="neo-input mb-sm"
-            placeholder="Account name"
-            aria-label="New account name"
-          />
-          <div class="flex gap-sm">
-            <select v-model="newAccountCurrency" class="neo-input flex-1" aria-label="Account currency">
-              <option v-for="currency in currencies" :key="currency.code" :value="currency.code">
-                {{ currency.code }} · {{ currency.name }}
-              </option>
-            </select>
-            <button
-              class="neo-button neo-button--primary"
-              type="button"
-              :disabled="!newAccountName.trim() || accountsStore.saving"
-              @click="createAccount"
-            >
-              Create
-            </button>
-          </div>
-        </div>
-        <button
-          v-if="accountsStore.activeAccount && accountsStore.accounts.length > 1"
-          class="neo-button neo-button--ghost text-xs text-danger mt-sm"
-          type="button"
-          @click="archiveActiveAccount"
-        >
-          Archive active account
-        </button>
-        <p v-if="accountsStore.error" class="text-xs text-danger mt-sm">{{ accountsStore.error }}</p>
+        <p class="text-sm text-secondary">Personal profile</p>
       </div>
 
       <!-- Theme & Notifications -->
@@ -275,23 +185,19 @@
 
 <script setup lang="ts">
   import { ref, watch } from 'vue';
-  import { useRoute, useRouter } from 'vue-router';
+  import { useRouter } from 'vue-router';
   import { useUserStore } from '@/stores/user';
   import { useAuthStore } from '@/stores/auth';
-  import { useAccountsStore } from '@/stores/accounts';
   import { useThemeStore } from '@/stores/theme';
   import { useMomoStore } from '@/stores/momo';
   import { useExpensesStore } from '@/stores/expenses';
   import { useCategoriesStore } from '@/stores/categories';
   import { usePwaInstall } from '@/composables/usePwaInstall';
   import { convex, api } from '@/services/convexClient';
-  import type { CurrencyCode } from '@/types';
 
   const router = useRouter();
-  const route = useRoute();
   const userStore = useUserStore();
   const authStore = useAuthStore();
-  const accountsStore = useAccountsStore();
   const themeStore = useThemeStore();
   const momoStore = useMomoStore();
   const expensesStore = useExpensesStore();
@@ -307,63 +213,19 @@
   const newCatColor = ref('#6366F1');
   const notificationToggling = ref(false);
   const optimisticNotificationsEnabled = ref(userStore.profile.notificationsEnabled ?? false);
-  const accountName = ref(accountsStore.activeAccount?.name ?? '');
-  const showAccountForm = ref(route.query.account === 'new');
-  const newAccountName = ref('');
-  const currencies: { code: CurrencyCode; name: string }[] = [
-    { code: 'GHS', name: 'Ghana Cedi' },
-    { code: 'USD', name: 'US Dollar' },
-    { code: 'EUR', name: 'Euro' },
-    { code: 'GBP', name: 'British Pound' },
-  ];
-  const newAccountCurrency = ref<CurrencyCode>('GHS');
-
-  watch(
-    () => accountsStore.activeAccountId,
-    (accountId) => {
-      accountName.value = accountsStore.activeAccount?.name ?? '';
-    },
-  );
 
   async function handleSignOut() {
     await authStore.signOut();
     await router.push({ name: 'auth' });
   }
 
+  async function goToAccountSettings() {
+    await router.push({ name: 'account-settings' });
+  }
+
   function saveApiKey() {
     userStore.setApiKey(apiKeyInput.value);
     showApiKey.value = false;
-  }
-
-  async function createAccount() {
-    if (!newAccountName.value.trim()) return;
-    await accountsStore.createAccount(newAccountName.value, newAccountCurrency.value);
-    newAccountName.value = '';
-    showAccountForm.value = false;
-  }
-
-  async function renameActiveAccount() {
-    if (!accountsStore.activeAccountId || !accountName.value.trim()) return;
-    await accountsStore.updateAccount(accountsStore.activeAccountId, {
-      name: accountName.value.trim(),
-    });
-  }
-
-  async function updateCurrency(event: Event) {
-    const currency = (event.target as HTMLSelectElement).value as CurrencyCode;
-    if (accountsStore.activeAccountId) {
-      await accountsStore.updateAccount(accountsStore.activeAccountId, { currency });
-    }
-  }
-
-  function accountCurrencyName(code: CurrencyCode): string {
-    return currencies.find((currency) => currency.code === code)?.name ?? code;
-  }
-
-  async function archiveActiveAccount() {
-    const account = accountsStore.activeAccount;
-    if (!account || !window.confirm(`Archive ${account.name}?`)) return;
-    await accountsStore.archiveAccount(account.id);
   }
 
   async function addCategory() {
@@ -373,9 +235,6 @@
   }
 
   async function toggleNotifications() {
-    if (notificationToggling.value) return;
-    notificationToggling.value = true;
-
     const newState = !optimisticNotificationsEnabled.value;
     // Flip immediately for snappy UI feedback
     optimisticNotificationsEnabled.value = newState;
@@ -461,15 +320,6 @@
     &__divider {
       height: 1px;
       background: var(--border);
-    }
-    &__account-summary {
-      display: flex;
-      align-items: center;
-      gap: $space-md;
-      margin: $space-sm 0 $space-md;
-      padding: $space-md;
-      border-radius: $radius-md;
-      background: var(--bg);
     }
     &__toggle {
       width: 44px;

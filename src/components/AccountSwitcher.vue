@@ -49,7 +49,7 @@
             <span class="material-symbols-rounded" aria-hidden="true">person</span>
             <span>My profile</span>
           </button>
-          <button type="button" class="account-switcher__action" @click="goToProfile">
+          <button type="button" class="account-switcher__action" @click="goToAccountSettings">
             <span class="material-symbols-rounded" aria-hidden="true">settings</span>
             <span>Account settings</span>
           </button>
@@ -173,9 +173,14 @@
     await router.push({ name: 'profile' });
   }
 
+  async function goToAccountSettings() {
+    close();
+    await router.push({ name: 'account-settings' });
+  }
+
   async function goToCreateAccount() {
     close();
-    await router.push({ name: 'profile', query: { account: 'new' } });
+    await router.push({ name: 'account-settings', query: { account: 'new' } });
   }
 
   async function signOut() {
