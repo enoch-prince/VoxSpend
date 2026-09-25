@@ -7,9 +7,7 @@
           <p class="text-sm text-secondary">Good {{ greeting }},</p>
           <h1 class="text-lg font-bold">{{ userStore.profile.name || 'there' }}</h1>
         </div>
-        <div class="dashboard__avatar" @click="$router.push('/profile')">
-          <span class="font-bold text-sm">{{ userStore.initials }}</span>
-        </div>
+        <AccountSwitcher />
       </header>
 
       <!-- Balance Card -->
@@ -114,6 +112,7 @@
   import { useVoiceStore } from '@/stores/voice';
   import BalanceCard from '@/components/BalanceCard.vue';
   import ExpenseItem from '@/components/ExpenseItem.vue';
+  import AccountSwitcher from '@/components/AccountSwitcher.vue';
   import { formatCurrency } from '@/utils/currency';
 
   const expensesStore = useExpensesStore();

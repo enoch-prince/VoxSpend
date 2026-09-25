@@ -21,29 +21,25 @@
       <div class="neo-card-sm mb-md">
         <div class="profile-view__row">
           <span class="material-symbols-rounded text-secondary">account_tree</span>
-          <span class="text-sm font-semibold flex-1">Expense Account</span>
+          <span class="text-sm font-semibold flex-1">Account settings</span>
           <button
             class="neo-button neo-button--ghost text-xs"
             type="button"
             @click="showAccountForm = !showAccountForm"
           >
-            {{ showAccountForm ? 'Close' : 'New' }}
+            {{ showAccountForm ? 'Close' : 'Add account' }}
           </button>
         </div>
         <div class="profile-view__divider"></div>
-        <div class="profile-view__row">
-          <label class="text-xs text-secondary" for="active-account-select">Active</label>
-          <select
-            id="active-account-select"
-            v-model="selectedAccountId"
-            class="neo-input text-sm"
-            style="max-width: 190px"
-            @change="switchAccount"
-          >
-            <option v-for="account in accountsStore.accounts" :key="account.id" :value="account.id">
-              {{ account.name }} · {{ account.currency }}
-            </option>
-          </select>
+        <div v-if="accountsStore.activeAccount" class="profile-view__account-summary">
+          <span class="material-symbols-rounded text-primary" aria-hidden="true">account_tree</span>
+          <div class="flex flex-col">
+            <strong class="text-sm">{{ accountsStore.activeAccount.name }}</strong>
+            <span class="text-xs text-tertiary">
+              {{ accountsStore.activeAccount.currency }} ·
+              {{ accountCurrencyName(accountsStore.activeAccount.currency) }}
+            </span>
+          </div>
         </div>
         <div v-if="accountsStore.activeAccount" class="profile-view__row mt-sm">
           <label class="text-xs text-secondary" for="account-currency-select">Currency</label>
@@ -279,7 +275,7 @@
 
 <script setup lang="ts">
   import { ref, watch } from 'vue';
-  import { useRouter } from 'vue-router';
+  import { useRoute, useRouter } from 'vue-router';
   import { useUserStore } from '@/stores/user';
   import { useAuthStore } from '@/stores/auth';
   import { useAccountsStore } from '@/stores/accounts';
@@ -292,6 +288,7 @@
   import type { CurrencyCode } from '@/types';
 
   const router = useRouter();
+  const route = useRoute();
   const userStore = useUserStore();
   const authStore = useAuthStore();
   const accountsStore = useAccountsStore();
@@ -310,9 +307,8 @@
   const newCatColor = ref('#6366F1');
   const notificationToggling = ref(false);
   const optimisticNotificationsEnabled = ref(userStore.profile.notificationsEnabled ?? false);
-  const selectedAccountId = ref(accountsStore.activeAccountId ?? '');
   const accountName = ref(accountsStore.activeAccount?.name ?? '');
-  const showAccountForm = ref(false);
+  const showAccountForm = ref(route.query.account === 'new');
   const newAccountName = ref('');
   const currencies: { code: CurrencyCode; name: string }[] = [
     { code: 'GHS', name: 'Ghana Cedi' },
@@ -325,7 +321,6 @@
   watch(
     () => accountsStore.activeAccountId,
     (accountId) => {
-      selectedAccountId.value = accountId ?? '';
       accountName.value = accountsStore.activeAccount?.name ?? '';
     },
   );
@@ -338,10 +333,6 @@
   function saveApiKey() {
     userStore.setApiKey(apiKeyInput.value);
     showApiKey.value = false;
-  }
-
-  async function switchAccount() {
-    if (selectedAccountId.value) await accountsStore.selectAccount(selectedAccountId.value);
   }
 
   async function createAccount() {
@@ -470,6 +461,15 @@
     &__divider {
       height: 1px;
       background: var(--border);
+    }
+    &__account-summary {
+      display: flex;
+      align-items: center;
+      gap: $space-md;
+      margin: $space-sm 0 $space-md;
+      padding: $space-md;
+      border-radius: $radius-md;
+      background: var(--bg);
     }
     &__toggle {
       width: 44px;
