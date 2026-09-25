@@ -1,5 +1,5 @@
 <template>
-  <div class="account-settings-view overflow-y-auto h-full">
+  <div class="account-settings-view overflow-y-auto h-full" @click="currencyPicker = null">
     <div class="account-settings-view__content px-lg py-md">
       <header class="flex items-center gap-md mb-lg">
         <button class="neo-button neo-button--ghost" type="button" aria-label="Back" @click="router.back()">
@@ -46,16 +46,50 @@
           <label class="text-xs text-secondary font-semibold" for="account-currency">
             Default currency
           </label>
-          <select
-            id="account-currency"
-            :value="accountsStore.activeAccount.currency"
-            class="neo-input"
-            @change="updateCurrency"
-          >
-            <option v-for="currency in currencies" :key="currency.code" :value="currency.code">
-              {{ currency.code }} · {{ currency.name }}
-            </option>
-          </select>
+          <div class="currency-picker" @click.stop>
+            <button
+              id="account-currency"
+              class="currency-picker__trigger"
+              type="button"
+              role="combobox"
+              :aria-expanded="currencyPicker === 'active'"
+              aria-controls="active-currency-options"
+              @click="toggleCurrencyPicker('active')"
+            >
+              <span class="currency-picker__code">{{ accountsStore.activeAccount.currency }}</span>
+              <span class="currency-picker__name">{{ accountCurrencyName(accountsStore.activeAccount.currency) }}</span>
+              <span class="material-symbols-rounded currency-picker__chevron" aria-hidden="true">
+                {{ currencyPicker === 'active' ? 'expand_less' : 'expand_more' }}
+              </span>
+            </button>
+            <div
+              v-if="currencyPicker === 'active'"
+              id="active-currency-options"
+              class="currency-picker__options"
+              role="listbox"
+              aria-label="Default currency"
+            >
+              <button
+                v-for="currency in currencies"
+                :key="currency.code"
+                class="currency-picker__option"
+                :class="{ 'currency-picker__option--active': currency.code === accountsStore.activeAccount.currency }"
+                type="button"
+                role="option"
+                :aria-selected="currency.code === accountsStore.activeAccount.currency"
+                @click="selectCurrency('active', currency.code)"
+              >
+                <span class="currency-picker__option-mark">{{ currency.symbol }}</span>
+                <span class="currency-picker__option-copy">
+                  <strong>{{ currency.code }}</strong>
+                  <span>{{ currency.name }}</span>
+                </span>
+                <span v-if="currency.code === accountsStore.activeAccount.currency" class="material-symbols-rounded currency-picker__check" aria-hidden="true">
+                  check
+                </span>
+              </button>
+            </div>
+          </div>
           <p class="text-xs text-tertiary">
             Existing transactions keep their original currency.
           </p>
@@ -98,11 +132,49 @@
             placeholder="e.g. Business"
             aria-label="New account name"
           />
-          <select v-model="newAccountCurrency" class="neo-input" aria-label="New account currency">
-            <option v-for="currency in currencies" :key="currency.code" :value="currency.code">
-              {{ currency.code }} · {{ currency.name }}
-            </option>
-          </select>
+          <div class="currency-picker" @click.stop>
+            <button
+              class="currency-picker__trigger"
+              type="button"
+              role="combobox"
+              :aria-expanded="currencyPicker === 'new'"
+              aria-controls="new-currency-options"
+              @click="toggleCurrencyPicker('new')"
+            >
+              <span class="currency-picker__code">{{ newAccountCurrency }}</span>
+              <span class="currency-picker__name">{{ accountCurrencyName(newAccountCurrency) }}</span>
+              <span class="material-symbols-rounded currency-picker__chevron" aria-hidden="true">
+                {{ currencyPicker === 'new' ? 'expand_less' : 'expand_more' }}
+              </span>
+            </button>
+            <div
+              v-if="currencyPicker === 'new'"
+              id="new-currency-options"
+              class="currency-picker__options"
+              role="listbox"
+              aria-label="New account currency"
+            >
+              <button
+                v-for="currency in currencies"
+                :key="currency.code"
+                class="currency-picker__option"
+                :class="{ 'currency-picker__option--active': currency.code === newAccountCurrency }"
+                type="button"
+                role="option"
+                :aria-selected="currency.code === newAccountCurrency"
+                @click="selectCurrency('new', currency.code)"
+              >
+                <span class="currency-picker__option-mark">{{ currency.symbol }}</span>
+                <span class="currency-picker__option-copy">
+                  <strong>{{ currency.code }}</strong>
+                  <span>{{ currency.name }}</span>
+                </span>
+                <span v-if="currency.code === newAccountCurrency" class="material-symbols-rounded currency-picker__check" aria-hidden="true">
+                  check
+                </span>
+              </button>
+            </div>
+          </div>
           <button
             class="neo-button neo-button--primary"
             type="button"
@@ -122,21 +194,23 @@
   import { useRoute, useRouter } from 'vue-router';
   import { useAccountsStore } from '@/stores/accounts';
   import type { CurrencyCode } from '@/types';
+  import { currencyInfo } from '@/utils/currency';
 
   const router = useRouter();
   const route = useRoute();
   const accountsStore = useAccountsStore();
 
-  const currencies: { code: CurrencyCode; name: string }[] = [
-    { code: 'GHS', name: 'Ghana Cedi' },
-    { code: 'USD', name: 'US Dollar' },
-    { code: 'EUR', name: 'Euro' },
-    { code: 'GBP', name: 'British Pound' },
+  const currencies: { code: CurrencyCode; name: string; symbol: string }[] = [
+    { code: 'GHS', name: 'Ghana Cedi', symbol: 'GH₵' },
+    { code: 'USD', name: 'US Dollar', symbol: '$' },
+    { code: 'EUR', name: 'Euro', symbol: '€' },
+    { code: 'GBP', name: 'British Pound', symbol: '£' },
   ];
   const accountName = ref(accountsStore.activeAccount?.name ?? '');
   const showAccountForm = ref(route.query.account === 'new');
   const newAccountName = ref('');
   const newAccountCurrency = ref<CurrencyCode>('GHS');
+  const currencyPicker = ref<'active' | 'new' | null>(null);
 
   watch(
     () => accountsStore.activeAccountId,
@@ -165,7 +239,20 @@
   }
 
   function accountCurrencyName(code: CurrencyCode): string {
-    return currencies.find((currency) => currency.code === code)?.name ?? code;
+    return currencyInfo(code).name;
+  }
+
+  function toggleCurrencyPicker(target: 'active' | 'new') {
+    currencyPicker.value = currencyPicker.value === target ? null : target;
+  }
+
+  async function selectCurrency(target: 'active' | 'new', currency: CurrencyCode) {
+    currencyPicker.value = null;
+    if (target === 'new') {
+      newAccountCurrency.value = currency;
+      return;
+    }
+    await updateCurrency(currency);
   }
 
   async function renameActiveAccount() {
@@ -175,8 +262,7 @@
     });
   }
 
-  async function updateCurrency(event: Event) {
-    const currency = (event.target as HTMLSelectElement).value as CurrencyCode;
+  async function updateCurrency(currency: CurrencyCode) {
     if (accountsStore.activeAccountId) {
       await accountsStore.updateAccount(accountsStore.activeAccountId, { currency });
     }
@@ -240,6 +326,126 @@
     display: flex;
     flex-direction: column;
     gap: $space-sm;
+  }
+
+  .currency-picker {
+    position: relative;
+  }
+
+  .currency-picker__trigger {
+    display: flex;
+    align-items: center;
+    gap: $space-sm;
+    width: 100%;
+    min-height: 48px;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: $radius-md;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition: border-color $transition-fast, box-shadow $transition-fast;
+  }
+
+  .currency-picker__trigger:hover,
+  .currency-picker__trigger[aria-expanded='true'] {
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba($primary, 0.12);
+  }
+
+  .currency-picker__trigger:focus-visible,
+  .currency-picker__option:focus-visible {
+    outline: 3px solid rgba($primary, 0.3);
+    outline-offset: 2px;
+  }
+
+  .currency-picker__code {
+    min-width: 2.8rem;
+    color: $primary;
+    font-size: $font-size-sm;
+    font-weight: 800;
+  }
+
+  .currency-picker__name {
+    flex: 1;
+    color: var(--text-secondary);
+    font-size: $font-size-sm;
+  }
+
+  .currency-picker__chevron {
+    color: var(--text-tertiary);
+    font-size: 1.2rem;
+  }
+
+  .currency-picker__options {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    left: 0;
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: $radius-md;
+    background: var(--surface);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+  }
+
+  .currency-picker__option {
+    display: flex;
+    align-items: center;
+    gap: $space-sm;
+    min-height: 48px;
+    padding: 0.5rem 0.6rem;
+    border: 0;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+  }
+
+  .currency-picker__option:hover,
+  .currency-picker__option--active {
+    background: var(--bg);
+  }
+
+  .currency-picker__option-mark {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 9px;
+    background: rgba($primary, 0.1);
+    color: $primary;
+    font-size: $font-size-sm;
+    font-weight: 800;
+  }
+
+  .currency-picker__option-copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+
+  .currency-picker__option-copy strong {
+    font-size: $font-size-sm;
+  }
+
+  .currency-picker__option-copy span {
+    color: var(--text-tertiary);
+    font-size: $font-size-xs;
+  }
+
+  .currency-picker__check {
+    color: $primary;
+    font-size: 1.15rem;
+    font-weight: 800;
   }
 
   .account-settings-view__error {
